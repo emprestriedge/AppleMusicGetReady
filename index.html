@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GetReady">
+    <meta name="theme-color" content="#000000">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3669/3669986.png">
+    
+    <title>GetReady</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        palette: {
+                            mint: '#BDE2E3',
+                            teal: '#2DB9B1',
+                            pink: '#FF007A',
+                            gold: '#C5A04D',
+                            copper: '#B7763D',
+                            emerald: '#19A28E',
+                        }
+                    },
+                    animation: {
+                        'jelly-shimmer': 'highlightShimmer 5s ease-in-out infinite',
+                        'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+        
+        :root {
+            --ios-pink: #FF007A;
+            --palette-mint: #BDE2E3;
+            --palette-teal: #2DB9B1;
+            --palette-gold: #C5A04D;
+            --palette-copper: #B7763D;
+            --palette-emerald: #19A28E;
+            
+            /* Safe area support for iOS */
+            --safe-area-inset-top: env(safe-area-inset-top, 0px);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            position: fixed; /* Prevents "rubber-banding" of the whole body on iOS */
+            overscroll-behavior: none;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+        }
+
+        body {
+            font-family: -apple-system, "SF Pro Rounded", "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Inter", sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            color: #fff;
+            letter-spacing: -0.015em;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            10% { transform: translateX(0); }
+            45% { transform: translateX(-40%); }
+            55% { transform: translateX(-40%); }
+            90% { transform: translateX(0); }
+            100% { transform: translateX(0); }
+        }
+
+        .marquee-content {
+            display: inline-block;
+            white-space: nowrap;
+            min-width: 100%;
+            animation: marquee 12s ease-in-out infinite;
+        }
+
+        .marquee-container {
+            overflow: hidden;
+            white-space: nowrap;
+            mask-image: linear-gradient(to right, black 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+        }
+
+        @keyframes highlightShimmer {
+            0%, 100% { transform: translate(-2px, -1px) rotate(-5deg); opacity: 0.5; }
+            50% { transform: translate(3px, 2px) rotate(-4deg); opacity: 0.8; }
+        }
+
+        @keyframes pulseSoft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes inkDrift {
+            0% { transform: scale(1.0) translate(0, 0); }
+            33% { transform: scale(1.06) translate(-2%, 1%); }
+            66% { transform: scale(1.04) translate(1%, -1%); }
+            100% { transform: scale(1.0) translate(0, 0); }
+        }
+
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stagger-entry {
+            animation: slideUpFade 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+            opacity: 0;
+        }
+        .stagger-1 { animation-delay: 0.05s; }
+        .stagger-2 { animation-delay: 0.1s; }
+        .stagger-3 { animation-delay: 0.15s; }
+        .stagger-4 { animation-delay: 0.2s; }
+        .stagger-5 { animation-delay: 0.25s; }
+
+        .font-mango {
+            font-family: 'Bodoni Moda', serif;
+            letter-spacing: -0.03em;
+            font-weight: 900;
+            line-height: 0.85;
+        }
+
+        .font-gurmukhi {
+            font-family: "Gurmukhi MN", "GurmukhiMN", "SF Pro Rounded", "Outfit", sans-serif;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .font-skia {
+            font-family: 'Skia', "SF Pro Rounded", 'SF Pro Display', 'Inter', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        .font-bodoni-smallcaps {
+            font-family: 'Bodoni Moda', serif;
+            font-variant: small-caps;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .header-ombre {
+            background: linear-gradient(to bottom, #FFFFFF 20%, #19A28E 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        .font-garet {
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: -0.01em;
+            font-weight: 500;
+        }
+
+        #root {
+            height: 100dvh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .glass-panel-gold {
+            background: rgba(197, 160, 77, 0.07);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 0.5px solid rgba(197, 160, 77, 0.15);
+            box-shadow: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .header-text-responsive {
+            font-size: clamp(4.5rem, 18vw, 6.8rem);
+            line-height: 0.9;
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+
+        .ios-caption {
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            font-weight: 900;
+        }
+
+        ::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+
+        .ios-btn-active:active {
+            transform: scale(0.96);
+            opacity: 0.8;
+            transition: all 0.1s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-ios {
+            animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+        }
+
+        .label-transition {
+            transition: opacity 180ms ease-out, transform 180ms ease-out;
+            will-change: opacity, transform;
+        }
+        .label-hidden {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        .label-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Prevent scroll text selection */
+        .no-select {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .ios-scroller {
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@/": "./"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>

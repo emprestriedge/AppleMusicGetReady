@@ -1,0 +1,5 @@
+{
+  "name": "Apple Music Version of GetReady (iOS Prototype)",
+  "description": "A clean, SwiftUI-inspired prototype for managing Apple Music playlists and podcasts with AI-powered mix insights.",
+  "requestFramePermissions": []
+}
