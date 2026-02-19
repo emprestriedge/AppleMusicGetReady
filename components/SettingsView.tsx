@@ -8,9 +8,12 @@ import PodcastManagerView from './PodcastManagerView';
 import DeveloperToolsView from './DeveloperToolsView';
 import RapSourcesView from './RapSourcesView';
 import { SpotifyAuth } from '../services/spotifyAuth';
+import { appleMusicService } from '../services/appleMusicService';
 import { Haptics } from '../services/haptics';
 import { configStore } from '../services/configStore';
 import { toastService } from '../services/toastService';
+import { MUSIC_PLATFORM } from '../constants';
+import { musicProvider } from '../services/musicProvider';
 
 interface SettingsViewProps {
   config: AppConfig;
@@ -28,6 +31,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, rules, setRules, sp
   const [mode, setMode] = useState<SettingsMode>('root');
   const [blockedCount, setBlockedCount] = useState(0);
   const [rapLinkedCount, setRapLinkedCount] = useState(0);
+
+  const isApple = MUSIC_PLATFORM === 'apple';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -47,6 +52,19 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, rules, setRules, sp
   };
 
   const handleConnect = async () => {
+    if (isApple) {
+      Haptics.impact();
+      setAuthStatus('waiting');
+      try {
+        await appleMusicService.login();
+      } catch (e: any) {
+        setAuthStatus('error');
+        Haptics.error();
+        toastService.show(e.message, "error");
+      }
+      return;
+    }
+
     if (!config.spotifyClientId) {
       toastService.show("Enter a Client ID first", "warning");
       return;
@@ -64,9 +82,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, rules, setRules, sp
 
   const handleDisconnect = () => {
     Haptics.impact();
-    if (confirm("Disconnect Spotify and clear authorization?")) {
-      SpotifyAuth.hardReset();
-      SpotifyAuth.logout();
+    if (confirm(`Disconnect ${isApple ? 'Apple Music' : 'Spotify'} and clear authorization?`)) {
+      if (!isApple) {
+        SpotifyAuth.hardReset();
+      }
+      musicProvider.unauthorize();
+      window.location.reload();
     }
   };
 
@@ -89,22 +110,26 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, rules, setRules, sp
         
         <section className="w-full">
           <div className="flex justify-between items-center mb-3 ml-5 pr-5">
-            <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em]">Spotify Connection</h2>
+            <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em]">
+              {isApple ? 'Apple Music Connection' : 'Spotify Connection'}
+            </h2>
           </div>
           
           <div className="glass-panel-gold rounded-3xl overflow-hidden p-6 flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-1">Spotify Client ID</label>
-              <input 
-                type="text"
-                value={config.spotifyClientId || ''}
-                onChange={(e) => configStore.updateSpotifyClientId(e.target.value)}
-                placeholder="Paste Client ID from Spotify Dev Dashboard"
-                className="bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-[#D1F2EB] font-garet font-bold outline-none focus:border-palette-pink transition-all w-full"
-              />
-            </div>
+            {!isApple && (
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-1">Spotify Client ID</label>
+                <input 
+                  type="text"
+                  value={config.spotifyClientId || ''}
+                  onChange={(e) => configStore.updateSpotifyClientId(e.target.value)}
+                  placeholder="Paste Client ID from Spotify Dev Dashboard"
+                  className="bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-[#D1F2EB] font-garet font-bold outline-none focus:border-palette-pink transition-all w-full"
+                />
+              </div>
+            )}
 
-            {!spotifyUser && config.spotifyClientId && (
+            {!spotifyUser && !isApple && config.spotifyClientId && (
               <div className="bg-palette-pink/5 border border-palette-pink/20 rounded-2xl p-4 flex flex-col gap-2">
                 <span className="text-[9px] font-black text-palette-pink uppercase tracking-widest">⚠️ Connection Troubleshooting</span>
                 <p className="text-[11px] text-zinc-500 font-garet leading-tight">
@@ -129,24 +154,32 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, rules, setRules, sp
              {!spotifyUser ? (
                <button 
                  onClick={handleConnect}
-                 disabled={!config.spotifyClientId}
+                 disabled={!isApple && !config.spotifyClientId}
                  className={`relative overflow-hidden w-full text-left rounded-[24px] p-5 flex items-center gap-6 group shadow-xl transition-all active:scale-95 ${
-                   !config.spotifyClientId 
+                   isApple 
+                   ? 'bg-gradient-to-br from-[#FA243C] via-[#FA243C] to-[#FD5D93] border border-white/15'
+                   : !config.spotifyClientId 
                    ? 'bg-zinc-800 opacity-40 grayscale cursor-not-allowed border border-white/5' 
                    : 'bg-gradient-to-br from-[#1DB954] via-[#1DB954] to-[#24cc5c] shadow-[#1DB954]/20 border border-white/15'
                  }`}
                >
-                 {config.spotifyClientId && (
+                 {(isApple || config.spotifyClientId) && (
                    <div className="absolute top-1 left-2 w-[85%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-full blur-[1px] animate-jelly-shimmer pointer-events-none" />
                  )}
                  <div className="relative z-10 w-14 h-14 bg-black/20 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden">
-                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.306c-.215.353-.674.463-1.027.248-2.857-1.745-6.453-2.14-10.686-1.173-.404.093-.813-.162-.906-.566-.093-.404.162-.813.566-.906 4.63-1.06 8.598-.61 11.785 1.339.353.215.463.674.248 1.027zm1.467-3.264c-.271.44-.847.581-1.287.31-3.268-2.008-8.25-2.592-12.115-1.417-.496.15-1.022-.128-1.173-.623-.15-.496.128-1.022.623-1.173 4.417-1.34 9.907-.678 13.642 1.613.44.271.581.847.31 1.287zm.127-3.413C15.228 8.249 8.845 8.038 5.16 9.157c-.551.167-1.13-.153-1.297-.704-.167-.551.153-1.13.704-1.297 4.227-1.282 11.278-1.037 15.82 1.66.496.295.661.934.366 1.43-.295.496-.934.661-1.43.366z"/>
-                    </svg>
+                    {isApple ? (
+                      <svg className="w-8 h-8 text-white fill-current" viewBox="0 0 24 24">
+                        <path d="M18.71,19.5C17.88,20.74,17,21.95,15.66,22c-1.31,0-1.72-.8-3.26-.8s-2,.77-3.23.82c-1.33,0-2.3-1.33-3.13-2.53C4.4,17.1,3.15,12.35,4.8,9.49c.81-1.42,2.27-2.32,3.87-2.35,1.21,0,2.35.84,3.1.84s2.12-1,3.53-.88a4.91,4.91,0,0,1,3.83,2.1,4.78,4.78,0,0,0-2.27,4A4.85,4.85,0,0,0,19.29,18,13,13,0,0,1,18.71,19.5ZM13,3.5a4.8,4.8,0,0,0,1.18-3.41,4.61,4.61,0,0,0-3,1.56,4.42,4.42,0,0,0-1.18,3.29A4.3,4.3,0,0,0,13,3.5Z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.306c-.215.353-.674.463-1.027.248-2.857-1.745-6.453-2.14-10.686-1.173-.404.093-.813-.162-.906-.566-.093-.404.162-.813.566-.906 4.63-1.06 8.598-.61 11.785 1.339.353.215.463.674.248 1.027zm1.467-3.264c-.271.44-.847.581-1.287.31-3.268-2.008-8.25-2.592-12.115-1.417-.496.15-1.022-.128-1.173-.623-.15-.496.128-1.022.623-1.173 4.417-1.34 9.907-.678 13.642 1.613.44.271.581.847.31 1.287zm.127-3.413C15.228 8.249 8.845 8.038 5.16 9.157c-.551.167-1.13-.153-1.297-.704-.167-.551.153-1.13.704-1.297 4.227-1.282 11.278-1.037 15.82 1.66.496.295.661.934.366 1.43-.295.496-.934.661-1.43.366z"/>
+                      </svg>
+                    )}
                  </div>
                  <div className="relative z-10 flex-1">
                    <h3 className="text-xl font-garet font-bold text-white">Link Account</h3>
-                   <p className="text-xs text-white/60 font-medium">Direct Redirect Flow</p>
+                   <p className="text-xs text-white/60 font-medium">{isApple ? 'MusicKit JS' : 'Direct Redirect Flow'}</p>
                  </div>
                  <div className="relative z-10 bg-white/20 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white">Connect</div>
                </button>
@@ -159,11 +192,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ config, rules, setRules, sp
                     ) : (
                         <div className="w-14 h-14 bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-600 font-black text-xl">{spotifyUser.display_name?.[0]}</div>
                     )}
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#1DB954] rounded-full border-2 border-black" />
+                    <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-black ${isApple ? 'bg-[#FA243C]' : 'bg-[#1DB954]'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                     <h3 className="text-xl font-garet font-bold text-white leading-none truncate">{spotifyUser.display_name}</h3>
-                    <p className="text-xs text-palette-emerald font-black uppercase tracking-widest mt-1.5">Active Session</p>
+                    <p className={`text-xs font-black uppercase tracking-widest mt-1.5 ${isApple ? 'text-[#FA243C]' : 'text-palette-emerald'}`}>Active Session</p>
                     </div>
                     <button 
                         onClick={handleDisconnect}

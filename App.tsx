@@ -4,6 +4,7 @@ import HomeView from './components/HomeView';
 import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
 import RunView from './components/RunView';
+import LoginView from './components/LoginView';
 import NowPlayingStrip from './components/NowPlayingStrip';
 import InkBackground from './components/InkBackground';
 import { SpotifyAuth } from './services/spotifyAuth';
@@ -102,6 +103,7 @@ const App: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<string>('idle');
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   const [isRunViewQueueMode, setIsRunViewQueueMode] = useState(false);
+  const [initFinished, setInitFinished] = useState(false);
 
   const triggerHaptic = () => {
     const trigger = document.getElementById('haptic-trigger') as HTMLInputElement;
@@ -132,6 +134,7 @@ const App: React.FC = () => {
         setSpotifyUser(demoUser);
         setAuthStatus('connected');
         loadHistory();
+        setInitFinished(true);
         return;
       }
 
@@ -162,9 +165,11 @@ const App: React.FC = () => {
           setAuthStatus('error');
         }
       }
+      
+      loadHistory();
+      setInitFinished(true);
     };
 
-    loadHistory();
     initSpotify();
     return unsub;
   }, []);
@@ -217,6 +222,11 @@ const App: React.FC = () => {
   };
 
   const isCurrentlyInPreview = showRunOverlay && !isRunViewQueueMode;
+
+  // Gate the app behind LoginView if no user is authenticated and not in Studio Mode
+  if (initFinished && !spotifyUser && !IS_STUDIO_MODE) {
+    return <LoginView onLoginSuccess={() => window.location.reload()} />;
+  }
 
   return (
     <div className="relative min-h-[100dvh] w-full overflow-hidden bg-black text-white">
