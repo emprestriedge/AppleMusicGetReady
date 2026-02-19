@@ -1,24 +1,35 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { RuleSettings, RunOption, SmartMixPlan, VibeType } from "../types";
+import { MOOD_ZONES, DISCOVERY_ZONES } from "../constants";
 
 /**
  * getMixInsight - Uses Gemini to generate AI-powered insights for the music mix.
  */
 export const getMixInsight = async (option: RunOption, rules: RuleSettings): Promise<string> => {
   try {
-    // Initialize Gemini API client inside the function to ensure up-to-date API key usage
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const moodLabel = (rules.moodLevel ?? 0.5) < MOOD_ZONES.ZEN_MAX
+      ? 'Mellow/Zen'
+      : (rules.moodLevel ?? 0.5) < MOOD_ZONES.FOCUS_MAX
+      ? 'Balanced/Focus'
+      : 'High Energy/Chaos';
+
+    const discoveryLabel = (rules.discoverLevel ?? 0) <= DISCOVERY_ZONES.ZERO_CUTOFF
+      ? 'Pure Favorites'
+      : (rules.discoverLevel ?? 0) <= DISCOVERY_ZONES.FAMILIAR_MAX
+      ? 'Familiar Territory'
+      : 'Outside Your Norm';
+
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',
       contents: `Provide a short, 1-sentence professional musicology insight for a user's playlist mix.
         Mix Name: ${option.name}
         Context: ${option.description}
-        Settings: Length=${rules.playlistLength} tracks, Energy=${rules.calmHype}, Exploration=${rules.discoverLevel}.
+        Settings: Length=${rules.playlistLength} tracks, Mood=${moodLabel}, Exploration=${discoveryLabel}.
         Insight:`,
     });
 
-    // Directly access the .text property from GenerateContentResponse
     return response.text || "Sync Engine operational. Composing multi-source catalog...";
   } catch (error) {
     console.error("Gemini Mix Insight failed:", error);
@@ -27,44 +38,51 @@ export const getMixInsight = async (option: RunOption, rules: RuleSettings): Pro
 };
 
 /**
- * getSmartMixPlan - Returns a deterministic preview of the composition engine's counts.
+ * getSmartMixPlan - Generates a preview summary of what the mix will look like
+ * based on the mood and discovery slider positions.
+ *
+ * This now mirrors the actual engine logic so the preview is accurate.
  */
 export const getSmartMixPlan = async (
   vibe: VibeType,
   discoverLevel: number,
-  calmHype: number,
-  playlistLength: number = 35 // Added playlistLength for summary accuracy
+  moodLevel: number,
+  playlistLength: number = 35
 ): Promise<SmartMixPlan> => {
-  const baseCounts: Record<VibeType, any> = {
-    Zen: { acoustic: 20, a7x: 6, liked: 7, shazam: 2, rap: 0 },
-    Focus: { acoustic: 14, a7x: 6, liked: 13, shazam: 2, rap: 0 },
-    Chaos: { acoustic: 5, a7x: 6, liked: 12, shazam: 12, rap: 0 },
-    LighteningMix: { acoustic: 0, a7x: 10, liked: 4, shazam: 7, rap: 14 },
-  };
 
-  const scale = playlistLength / 35;
-  const counts = { ...baseCounts[vibe] };
-  
-  // Scale base counts
-  Object.keys(counts).forEach(k => counts[k] = Math.round(counts[k] * scale));
+  // Mirror the mood zone logic from playbackEngine so the preview matches reality
+  const mood = Math.max(0, Math.min(1, moodLevel));
+  const discoveryCount = discoverLevel <= DISCOVERY_ZONES.ZERO_CUTOFF
+    ? 0
+    : Math.round(playlistLength * discoverLevel * 0.4);
+  const sourceTotal = playlistLength - discoveryCount;
 
-  // Apply Calm/Hype Fine-tuning
-  const shift = Math.round(6 * scale);
-  if (calmHype <= 0.33) {
-    counts.acoustic += shift;
-    if (counts.rap >= shift) counts.rap -= shift; else if (counts.shazam >= shift) counts.shazam -= shift;
-  } else if (calmHype >= 0.67) {
-    counts.acoustic = Math.max(0, counts.acoustic - shift);
-    if (vibe === 'Zen' || vibe === 'Focus') counts.shazam += shift; else counts.rap += shift;
-  }
+  // Same weight functions as calculateMoodRecipe in playbackEngine
+  const likedWeight    = Math.max(0, 1 - mood * 1.2);
+  const acousticWeight = Math.max(0, 1 - mood * 1.5);
+  const shazamWeight   = 0.3 + Math.sin(mood * Math.PI) * 0.4;
+  const a7xCoreWeight  = 0.35;
+  const a7xSimWeight   = mood * 0.9;
+  const rapWeight      = Math.max(0, (mood - 0.4) * 2.0);
 
-  const newCount = Math.round(playlistLength * discoverLevel);
-  // Summary adjustment
-  const actualLiked = Math.max(0, counts.liked - Math.floor(newCount / 2));
-  const actualShazam = Math.max(0, counts.shazam - Math.ceil(newCount / 2));
+  const totalWeight = likedWeight + acousticWeight + shazamWeight + a7xCoreWeight + a7xSimWeight + rapWeight;
+  const allocate = (w: number) => totalWeight > 0 ? Math.round((w / totalWeight) * sourceTotal) : 0;
+
+  const liked    = allocate(likedWeight);
+  const acoustic = allocate(acousticWeight);
+  const shazam   = allocate(shazamWeight);
+  const a7x      = allocate(a7xCoreWeight) + allocate(a7xSimWeight);
+  const rap      = allocate(rapWeight);
+
+  const moodLabel = mood < MOOD_ZONES.ZEN_MAX ? 'Zen' : mood < MOOD_ZONES.FOCUS_MAX ? 'Focus' : 'Chaos';
+  const discoveryLabel = discoverLevel <= DISCOVERY_ZONES.ZERO_CUTOFF
+    ? 'No new tracks'
+    : discoverLevel <= DISCOVERY_ZONES.FAMILIAR_MAX
+    ? 'Familiar territory'
+    : 'Outside your norm';
 
   return {
-    preset: `${vibe} Vibe Composition`,
-    summary: `Acoustic ${counts.acoustic} • A7X ${counts.a7x} • Shazam ${actualShazam} • Liked ${actualLiked} • Rap ${counts.rap} • New ${newCount}`
+    preset: `${vibe} · ${moodLabel} Mood · ${discoveryLabel}`,
+    summary: `Liked ${liked} • 90sAltRock ${acoustic} • Shazam ${shazam} • A7X ${a7x} • Rap ${rap} • New ${discoveryCount}`,
   };
 };
