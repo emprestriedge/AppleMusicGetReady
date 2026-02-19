@@ -1,4 +1,4 @@
-/**
+**
  * RunView.tsx — Apple Music Edition
  *
  * This is the screen you see when a mix is generating and playing.
@@ -23,11 +23,15 @@ import { RuleOverrideStore } from '../services/ruleOverrideStore';
 import { getEffectiveRules } from '../utils/ruleUtils';
 import { applePlaybackEngine } from '../services/playbackEngine';
 import { musicProvider } from '../services/musicProvider';
+import { AppleMusicProvider } from '../services/appleMusicProvider';
 import { BlockStore } from '../services/blockStore';
 import { apiLogger } from '../services/apiLogger';
 import { Haptics, ImpactFeedbackStyle } from '../services/haptics';
 import { toastService } from '../services/toastService';
 import { USE_MOCK_DATA } from '../constants';
+
+// Singleton so we reuse the same MusicKit instance across calls
+const appleLibrary = new AppleMusicProvider();
 
 interface RunViewProps {
   option: RunOption;
@@ -210,8 +214,9 @@ const RunView: React.FC<RunViewProps> = ({
   const [genStatus, setGenStatus] = useState<GenStatus>(initialResult ? 'DONE' : 'IDLE');
   const [viewMode, setViewMode] = useState<ViewMode>(isQueueMode ? 'QUEUE' : 'PREVIEW');
   const [showSaveOptions, setShowSaveOptions] = useState(false);
-  const [namingPrompt, setNamingPrompt] = useState(false);
+  const [namingPrompt, setNamingPrompt] = useState<'vault' | 'apple' | null>(null);
   const [saveName, setSaveName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [currentPlayingUri, setCurrentPlayingUri] = useState<string | null>(null);
   const [result, setResult] = useState<RunResult | null>(initialResult || null);
   const [error, setError] = useState<string | null>(null);
@@ -331,20 +336,46 @@ const RunView: React.FC<RunViewProps> = ({
 
   /**
    * handleToggleStatus — marks a track as a Gem (★) or removes the mark.
-   * This is a local/visual flag only — Apple Music handles its own library.
+   *
+   * Adding a gem: saves the track to the "GetReady Gems ⭐" Apple Music playlist.
+   * Removing a gem: updates the app UI only — Apple Music web API doesn't support
+   * removing individual tracks from playlists, so the user would need to do that
+   * manually in the Apple Music app if they want it gone from there too.
    */
-  const handleToggleStatus = (track: Track) => {
+  const handleToggleStatus = async (track: Track) => {
     if (!result?.tracks) return;
-    const newStatus = track.status === 'gem' ? 'none' : 'gem';
-    Haptics.medium();
+    const isGem = track.status === 'gem';
+    const newStatus = isGem ? 'none' : 'gem';
 
+    // Optimistic UI update — show the change immediately
+    const originalTracks = [...result.tracks];
     const updatedTracks = result.tracks.map(t =>
       t.id === track.id ? { ...t, status: newStatus as 'gem' | 'none' | 'liked' } : t
     );
     const updatedResult = { ...result, tracks: updatedTracks };
     setResult(updatedResult);
     onResultUpdate?.(updatedResult);
-    toastService.show(newStatus === 'gem' ? 'Marked as Gem ★' : 'Gem removed', 'info');
+
+    if (!isGem) {
+      // Adding to Gems — write to Apple Music library
+      Haptics.success();
+      try {
+        if (!USE_MOCK_DATA) {
+          await appleLibrary.addTrackToGems(track.id);
+        }
+        toastService.show('Added to GetReady Gems ⭐', 'success');
+      } catch (err: any) {
+        // Revert UI if the API call failed
+        setResult({ ...result, tracks: originalTracks });
+        onResultUpdate?.({ ...result, tracks: originalTracks });
+        toastService.show(`Couldn't save to Apple Music: ${err.message}`, 'error');
+      }
+    } else {
+      // Removing gem — UI only (Apple Music limitation)
+      Haptics.medium();
+      await appleLibrary.removeTrackFromGems(track.id);
+      toastService.show('Gem removed (remove from Apple Music playlist manually if needed)', 'info');
+    }
   };
 
   /**
@@ -365,17 +396,43 @@ const RunView: React.FC<RunViewProps> = ({
 
   const handleSaveToVaultPrompt = () => {
     setSaveName(`${option.name} Mix — ${new Date().toLocaleDateString()}`);
-    setNamingPrompt(true);
+    setNamingPrompt('vault');
     setShowSaveOptions(false);
   };
 
-  const handleConfirmSave = () => {
+  const handleSaveToAppleMusicPrompt = () => {
+    setSaveName(`${option.name} Mix — ${new Date().toLocaleDateString()}`);
+    setNamingPrompt('apple');
+    setShowSaveOptions(false);
+  };
+
+  const handleConfirmSave = async () => {
     if (!saveName.trim() || !result) return;
     Haptics.impact();
-    const updatedResult = { ...result, playlistName: saveName.trim() };
-    onComplete(updatedResult);
-    toastService.show(`Archived as "${saveName.trim()}"`, 'success');
-    setNamingPrompt(false);
+
+    if (namingPrompt === 'vault') {
+      // Save to in-app Vault history
+      const updatedResult = { ...result, playlistName: saveName.trim() };
+      onComplete(updatedResult);
+      toastService.show(`Archived as "${saveName.trim()}"`, 'success');
+      setNamingPrompt(null);
+
+    } else if (namingPrompt === 'apple') {
+      // Create a real playlist in the user's Apple Music library
+      setIsSaving(true);
+      try {
+        const trackIds = (result.tracks || []).map(t => t.id);
+        const playlist = await appleLibrary.createContainer(saveName.trim(), `Generated by GetReady • ${option.name}`);
+        await appleLibrary.addTracksToPlaylist(playlist.id, trackIds);
+        Haptics.success();
+        toastService.show(`"${saveName.trim()}" saved to Apple Music ✓`, 'success');
+        setNamingPrompt(null);
+      } catch (err: any) {
+        toastService.show(`Apple Music save failed: ${err.message}`, 'error');
+      } finally {
+        setIsSaving(false);
+      }
+    }
   };
 
   const handleRegenerate = () => {
@@ -564,6 +621,19 @@ const RunView: React.FC<RunViewProps> = ({
             <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-2" />
             <h3 className="text-white font-black text-lg text-center mb-2">Save Mix</h3>
 
+            {/* Save to Apple Music */}
+            <button
+              onClick={handleSaveToAppleMusicPrompt}
+              className="w-full bg-zinc-900 border border-white/10 rounded-2xl py-4 flex items-center gap-3 px-5 active:bg-zinc-800"
+            >
+              <span className="text-2xl">🎵</span>
+              <div className="text-left">
+                <div className="text-white font-black text-sm">Save to Apple Music</div>
+                <div className="text-zinc-500 text-xs">Creates a playlist in your Apple Music library</div>
+              </div>
+            </button>
+
+            {/* Save to Vault */}
             <button
               onClick={handleSaveToVaultPrompt}
               className="w-full bg-zinc-900 border border-white/10 rounded-2xl py-4 flex items-center gap-3 px-5 active:bg-zinc-800"
@@ -571,7 +641,7 @@ const RunView: React.FC<RunViewProps> = ({
               <span className="text-2xl">📚</span>
               <div className="text-left">
                 <div className="text-white font-black text-sm">Save to Vault</div>
-                <div className="text-zinc-500 text-xs">Archive this mix in your history</div>
+                <div className="text-zinc-500 text-xs">Archive this mix in your in-app history</div>
               </div>
             </button>
 
@@ -589,7 +659,9 @@ const RunView: React.FC<RunViewProps> = ({
       {namingPrompt && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 px-6">
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[28px] p-6 flex flex-col gap-4">
-            <h3 className="text-white font-black text-lg">Name This Mix</h3>
+            <h3 className="text-white font-black text-lg">
+              {namingPrompt === 'apple' ? 'Name Apple Music Playlist' : 'Name This Mix'}
+            </h3>
             <input
               type="text"
               value={saveName}
@@ -599,12 +671,14 @@ const RunView: React.FC<RunViewProps> = ({
             />
             <button
               onClick={handleConfirmSave}
-              className="w-full bg-palette-pink text-white font-black uppercase tracking-widest text-sm py-3 rounded-xl active:scale-95 transition-all"
+              disabled={isSaving}
+              className="w-full bg-palette-pink text-white font-black uppercase tracking-widest text-sm py-3 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              Save
+              {isSaving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
             <button
-              onClick={() => setNamingPrompt(false)}
+              onClick={() => setNamingPrompt(null)}
               className="w-full py-2 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400"
             >
               Cancel
