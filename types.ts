@@ -23,8 +23,8 @@ export interface RuleSettings {
   avoidRepeatsWindow: number;
   preferVariety: boolean;
   a7xMode: A7XMode;
-  calmHype: number;
-  discoverLevel: number;
+  moodLevel: number;      // Renamed from calmHype. 0 = Zen, 1 = Chaos
+  discoverLevel: number;  // 0 = pure favorites, 0.5 = familiar territory, 1 = outside your norm
   devMode: boolean;
   customPodcastOptions?: RunOption[];
 }
@@ -112,7 +112,7 @@ export interface RuleOverride {
   allowExplicit?: boolean;
   avoidRepeats?: boolean;
   a7xMode?: A7XMode;
-  calmHype?: number;
+  moodLevel?: number;
   discoverLevel?: number;
 }
 
