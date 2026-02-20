@@ -4,7 +4,7 @@ import { RunOption, RunOptionType, RuleSettings, Track, RunRecord } from './type
 //  Environment Flags
 // ─────────────────────────────────────────────
 export const USE_MOCK_DATA = true;
-export const IS_STUDIO_MODE = false;
+export const IS_STUDIO_MODE = true;
 export const MUSIC_PLATFORM: 'spotify' | 'apple' = 'apple';
 
 // ─────────────────────────────────────────────
