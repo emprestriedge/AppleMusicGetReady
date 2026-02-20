@@ -4,6 +4,17 @@ import { SMART_MIX_MODES, MUSIC_BUTTONS, PODCAST_OPTIONS, MOOD_ZONES, DISCOVERY_
 import { getSmartMixPlan, getMixInsight } from '../services/geminiService';
 import { Haptics } from '../services/haptics';
 
+export const StatusAsterisk: React.FC<{ status?: 'liked' | 'gem' | 'none' }> = ({ status = 'none' }) => {
+  const finalColor = (status === 'liked' || status === 'gem') ? '#FF007A' : '#555555';
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mr-2 sm:mr-3 mt-1" style={{ color: finalColor }}>
+      <path d="M12 3V21M4.2 7.5L19.8 16.5M19.8 7.5L4.2 16.5" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
+    </svg>
+  );
+};
+
+export const PinkAsterisk = () => <StatusAsterisk status="liked" />;
+
 interface HomeViewProps {
   onSelect: (option: RunOption) => void;
   rules: RuleSettings;
