@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RumpnOption, RuleSettings, SmartMixPlan, VibeType, RunOptionType } from '../types';
+import { RunOption, RuleSettings, SmartMixPlan, VibeType, RunOptionType } from '../types';
 import { SMART_MIX_MODES, MUSIC_BUTTONS, PODCAST_OPTIONS, MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
 import { getSmartMixPlan, getMixInsight } from '../services/geminiService';
 import { Haptics } from '../services/haptics';
