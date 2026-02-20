@@ -1,36 +1,15 @@
-**
- * RunView.tsx — Apple Music Edition
- *
- * This is the screen you see when a mix is generating and playing.
- * It replaced the Spotify-based RunView with Apple Music support.
- *
- * KEY CHANGES FROM SPOTIFY VERSION:
- * ─────────────────────────────────
- * - Uses AppleMusicPlaybackEngine instead of SpotifyPlaybackEngine
- * - Play button triggers MusicKit playback directly (no device picker needed)
- * - "Save to Spotify" replaced with "Save to Vault" only (Apple Music handles its own library)
- * - Playback state polling uses MusicKit events instead of Spotify polling API
- * - Deep link opens Apple Music app instead of Spotify
- * - Gems/liked status still works for local track marking
- * - Podcasts deep-link to Apple Podcasts app
- */
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  RunOption, RuleSettings, RunResult, RunOptionType, Track, PodcastShowCandidate
-} from '../types';
+import { RunOption, RuleSettings, RunResult, RunOptionType, Track } from '../types';
 import { RuleOverrideStore } from '../services/ruleOverrideStore';
 import { getEffectiveRules } from '../utils/ruleUtils';
 import { applePlaybackEngine } from '../services/playbackEngine';
 import { musicProvider } from '../services/musicProvider';
 import { AppleMusicProvider } from '../services/appleMusicProvider';
 import { BlockStore } from '../services/blockStore';
-import { apiLogger } from '../services/apiLogger';
 import { Haptics, ImpactFeedbackStyle } from '../services/haptics';
 import { toastService } from '../services/toastService';
 import { USE_MOCK_DATA } from '../constants';
 
-// Singleton so we reuse the same MusicKit instance across calls
 const appleLibrary = new AppleMusicProvider();
 
 interface RunViewProps {
@@ -48,10 +27,6 @@ interface RunViewProps {
 
 type GenStatus = 'IDLE' | 'RUNNING' | 'DONE' | 'ERROR';
 type ViewMode = 'PREVIEW' | 'QUEUE';
-
-// ─────────────────────────────────────────────
-//  TrackRow — individual track in the list
-// ─────────────────────────────────────────────
 
 const TrackRow: React.FC<{
   track: Track;
@@ -133,9 +108,8 @@ const TrackRow: React.FC<{
 
   return (
     <div className="relative overflow-hidden">
-      {/* Swipe-to-block action revealed underneath */}
       <div
-        className="absolute right-0 top-0 bottom-0 flex items-center justify-center bg-red-500/20 px-4 transition-opacity"
+        className="absolute right-0 top-0 bottom-0 flex items-center justify-center bg-red-500/20 px-4"
         style={{ opacity: Math.abs(swipeX) / 80, width: 80 }}
       >
         <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,10 +123,8 @@ const TrackRow: React.FC<{
         onTouchEnd={handleTouchEnd}
         onClick={() => onPlay(track, index)}
         style={{ transform: `translateX(${swipeX}px)`, transition: isSwiping ? 'none' : 'transform 0.3s ease' }}
-        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none
-          ${isActive ? 'bg-palette-teal/10' : isPressed ? 'bg-white/5' : 'bg-transparent'}`}
+        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none ${isActive ? 'bg-palette-teal/10' : isPressed ? 'bg-white/5' : 'bg-transparent'}`}
       >
-        {/* Album art */}
         <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-900">
           {track.imageUrl ? (
             <img src={track.imageUrl} alt={track.album} className="w-full h-full object-cover" />
@@ -165,7 +137,6 @@ const TrackRow: React.FC<{
           )}
         </div>
 
-        {/* Track info */}
         <div className="flex-1 min-w-0">
           <div className={`font-black text-[13px] truncate leading-tight ${isActive ? 'text-palette-teal' : 'text-white'}`}>
             {track.title}
@@ -173,14 +144,12 @@ const TrackRow: React.FC<{
           <div className="text-zinc-500 text-[11px] truncate font-medium">{track.artist}</div>
         </div>
 
-        {/* New badge */}
         {track.isNew && (
           <span className="text-[8px] font-black uppercase tracking-widest text-palette-pink border border-palette-pink/30 rounded px-1.5 py-0.5 flex-shrink-0">
             New
           </span>
         )}
 
-        {/* Playing indicator / gem status */}
         {isActive ? (
           <div className="flex gap-[3px] items-end h-4 flex-shrink-0">
             {[1, 2, 3].map(b => (
@@ -202,10 +171,6 @@ const TrackRow: React.FC<{
     </div>
   );
 };
-
-// ─────────────────────────────────────────────
-//  Main RunView
-// ─────────────────────────────────────────────
 
 const RunView: React.FC<RunViewProps> = ({
   option, rules, onClose, onComplete, initialResult,
@@ -230,8 +195,6 @@ const RunView: React.FC<RunViewProps> = ({
     if (el) (el as HTMLInputElement).click();
   };
 
-  // ── Generate mix on mount ──────────────────
-
   useEffect(() => {
     if (initialResult) {
       setResult(initialResult);
@@ -240,7 +203,6 @@ const RunView: React.FC<RunViewProps> = ({
     }
     if (genStatus === 'IDLE') startRun();
 
-    // Poll MusicKit playback state every 2s to highlight active track
     const poll = setInterval(async () => {
       try {
         const state = await musicProvider.getPlaybackStatus();
@@ -248,7 +210,7 @@ const RunView: React.FC<RunViewProps> = ({
           setCurrentPlayingUri(state.currentTrack.uri);
           setIsPlaying(state.isPlaying);
         }
-      } catch { /* silent */ }
+      } catch { }
     }, 2000);
 
     return () => clearInterval(poll);
@@ -257,8 +219,6 @@ const RunView: React.FC<RunViewProps> = ({
   useEffect(() => {
     if (viewMode !== 'QUEUE') onPreviewStarted?.();
   }, [viewMode]);
-
-  // ── Mix generation ─────────────────────────
 
   const startRun = async () => {
     generationRequestId.current++;
@@ -285,21 +245,13 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
-  // ── Playback ───────────────────────────────
-
-  /**
-   * handlePlayAll — sends the full track list to Apple Music and starts playing.
-   * No device picker needed — MusicKit plays on the current device automatically.
-   */
   const handlePlayAll = async () => {
     if (!result?.tracks || result.tracks.length === 0) return;
     Haptics.heavy();
 
     try {
-      // For podcasts, deep-link to Apple Podcasts app instead
       if (option.type === RunOptionType.PODCAST) {
-        const podcastUrl = `podcasts://`;
-        window.location.href = podcastUrl;
+        window.location.href = 'podcasts://';
         return;
       }
 
@@ -315,9 +267,6 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
-  /**
-   * handlePlayTrack — tapping a specific track in the list starts from that position.
-   */
   const handlePlayTrack = async (track: Track, index: number) => {
     if (!result?.tracks) return;
     try {
@@ -332,22 +281,11 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
-  // ── Track actions ──────────────────────────
-
-  /**
-   * handleToggleStatus — marks a track as a Gem (★) or removes the mark.
-   *
-   * Adding a gem: saves the track to the "GetReady Gems ⭐" Apple Music playlist.
-   * Removing a gem: updates the app UI only — Apple Music web API doesn't support
-   * removing individual tracks from playlists, so the user would need to do that
-   * manually in the Apple Music app if they want it gone from there too.
-   */
   const handleToggleStatus = async (track: Track) => {
     if (!result?.tracks) return;
     const isGem = track.status === 'gem';
     const newStatus = isGem ? 'none' : 'gem';
 
-    // Optimistic UI update — show the change immediately
     const originalTracks = [...result.tracks];
     const updatedTracks = result.tracks.map(t =>
       t.id === track.id ? { ...t, status: newStatus as 'gem' | 'none' | 'liked' } : t
@@ -357,30 +295,24 @@ const RunView: React.FC<RunViewProps> = ({
     onResultUpdate?.(updatedResult);
 
     if (!isGem) {
-      // Adding to Gems — write to Apple Music library
       Haptics.success();
       try {
         if (!USE_MOCK_DATA) {
           await appleLibrary.addTrackToGems(track.id);
         }
-        toastService.show('Added to GetReady Gems ⭐', 'success');
+        toastService.show('Added to GetReady Gems', 'success');
       } catch (err: any) {
-        // Revert UI if the API call failed
         setResult({ ...result, tracks: originalTracks });
         onResultUpdate?.({ ...result, tracks: originalTracks });
-        toastService.show(`Couldn't save to Apple Music: ${err.message}`, 'error');
+        toastService.show('Could not save to Apple Music', 'error');
       }
     } else {
-      // Removing gem — UI only (Apple Music limitation)
       Haptics.medium();
       await appleLibrary.removeTrackFromGems(track.id);
-      toastService.show('Gem removed (remove from Apple Music playlist manually if needed)', 'info');
+      toastService.show('Gem removed', 'info');
     }
   };
 
-  /**
-   * handleBlockTrack — hides a track from all future mixes permanently.
-   */
   const handleBlockTrack = (track: Track) => {
     if (!result?.tracks) return;
     Haptics.heavy();
@@ -392,16 +324,14 @@ const RunView: React.FC<RunViewProps> = ({
     toastService.show('Track hidden from future mixes', 'info');
   };
 
-  // ── Save to Vault ──────────────────────────
-
   const handleSaveToVaultPrompt = () => {
-    setSaveName(`${option.name} Mix — ${new Date().toLocaleDateString()}`);
+    setSaveName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
     setNamingPrompt('vault');
     setShowSaveOptions(false);
   };
 
   const handleSaveToAppleMusicPrompt = () => {
-    setSaveName(`${option.name} Mix — ${new Date().toLocaleDateString()}`);
+    setSaveName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
     setNamingPrompt('apple');
     setShowSaveOptions(false);
   };
@@ -411,21 +341,18 @@ const RunView: React.FC<RunViewProps> = ({
     Haptics.impact();
 
     if (namingPrompt === 'vault') {
-      // Save to in-app Vault history
       const updatedResult = { ...result, playlistName: saveName.trim() };
       onComplete(updatedResult);
       toastService.show(`Archived as "${saveName.trim()}"`, 'success');
       setNamingPrompt(null);
-
     } else if (namingPrompt === 'apple') {
-      // Create a real playlist in the user's Apple Music library
       setIsSaving(true);
       try {
         const trackIds = (result.tracks || []).map(t => t.id);
-        const playlist = await appleLibrary.createContainer(saveName.trim(), `Generated by GetReady • ${option.name}`);
+        const playlist = await appleLibrary.createContainer(saveName.trim(), `Generated by GetReady - ${option.name}`);
         await appleLibrary.addTracksToPlaylist(playlist.id, trackIds);
         Haptics.success();
-        toastService.show(`"${saveName.trim()}" saved to Apple Music ✓`, 'success');
+        toastService.show(`"${saveName.trim()}" saved to Apple Music`, 'success');
         setNamingPrompt(null);
       } catch (err: any) {
         toastService.show(`Apple Music save failed: ${err.message}`, 'error');
@@ -441,17 +368,11 @@ const RunView: React.FC<RunViewProps> = ({
     startRun();
   };
 
-  // ── Derived values ─────────────────────────
-
   const totalDurationStr = useMemo(() => {
     if (!result?.tracks) return null;
-    const mins = Math.floor(
-      result.tracks.reduce((acc, t) => acc + (t.durationMs || 0), 0) / 60000
-    );
+    const mins = Math.floor(result.tracks.reduce((acc, t) => acc + (t.durationMs || 0), 0) / 60000);
     return mins > 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} mins`;
   }, [result]);
-
-  // ── Loading state ──────────────────────────
 
   if (genStatus === 'RUNNING') {
     return (
@@ -459,18 +380,16 @@ const RunView: React.FC<RunViewProps> = ({
         <div className="w-20 h-20 border-4 border-palette-pink border-t-transparent rounded-full animate-spin mb-8" />
         <h2 className="text-4xl font-mango text-[#D1F2EB] mb-2">Composing Mix</h2>
         <p className="text-zinc-500 font-garet text-center max-w-xs uppercase tracking-widest text-[10px]">
-          Building your {option.name} mix from Apple Music...
+          Building your {option.name} mix...
         </p>
       </div>
     );
   }
 
-  // ── Error state ────────────────────────────
-
   if (genStatus === 'ERROR') {
     return (
       <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center p-8 gap-6">
-        <div className="text-5xl">⚠️</div>
+        <div className="text-5xl">&#9888;&#65039;</div>
         <h2 className="text-3xl font-mango text-palette-pink">Mix Failed</h2>
         <p className="text-zinc-500 text-center text-sm max-w-xs">{error}</p>
         <button
@@ -486,12 +405,9 @@ const RunView: React.FC<RunViewProps> = ({
     );
   }
 
-  // ── Main view ──────────────────────────────
-
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col animate-in slide-in-from-bottom duration-500 pb-[85px]">
 
-      {/* Header */}
       <header className="px-6 pb-4 flex items-center justify-between border-b border-white/5 bg-black/30 shrink-0 pt-16">
         <button
           onClick={() => { Haptics.impactAsync(ImpactFeedbackStyle.Light); onClose(); }}
@@ -512,7 +428,6 @@ const RunView: React.FC<RunViewProps> = ({
           )}
         </div>
 
-        {/* Play All / Source button */}
         <button
           onClick={viewMode === 'PREVIEW' ? handlePlayAll : () => setViewMode('PREVIEW')}
           className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all active:scale-95 ${
@@ -534,11 +449,8 @@ const RunView: React.FC<RunViewProps> = ({
         </button>
       </header>
 
-      {/* Track list */}
       <div className="flex-1 overflow-y-auto ios-scroller">
         <div className="px-4 py-4 flex flex-col gap-2">
-
-          {/* Duration summary */}
           {totalDurationStr && result?.tracks && (
             <div className="flex items-center justify-between px-2 mb-2">
               <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
@@ -569,14 +481,9 @@ const RunView: React.FC<RunViewProps> = ({
         </div>
       </div>
 
-      {/* Bottom action bar — Preview mode */}
       {viewMode === 'PREVIEW' && (
-        <div
-          className="fixed left-0 right-0 px-6 pt-10 pb-3 bg-gradient-to-t from-black via-black/95 to-transparent z-[100]"
-          style={{ bottom: '85px' }}
-        >
+        <div className="fixed left-0 right-0 px-6 pt-10 pb-3 bg-gradient-to-t from-black via-black/95 to-transparent z-[100]" style={{ bottom: '85px' }}>
           <div className="flex items-center gap-4">
-            {/* Regenerate */}
             <button
               onClick={handleRegenerate}
               className="w-14 h-14 rounded-[24px] bg-zinc-900 border border-white/10 flex items-center justify-center text-palette-gold active:scale-95 transition-all shadow-xl"
@@ -587,7 +494,6 @@ const RunView: React.FC<RunViewProps> = ({
               </svg>
             </button>
 
-            {/* Save to Vault */}
             <button
               onClick={() => { Haptics.heavy(); setShowSaveOptions(true); }}
               className="flex-1 relative overflow-hidden bg-zinc-900 border border-white/10 py-4 rounded-[24px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-xl"
@@ -598,7 +504,6 @@ const RunView: React.FC<RunViewProps> = ({
               <span className="text-white font-black text-sm uppercase tracking-widest">Save</span>
             </button>
 
-            {/* Play All */}
             <button
               onClick={handlePlayAll}
               className="flex-1 relative overflow-hidden bg-gradient-to-br from-[#FF007A] via-[#FF1A8B] to-[#FF4D9F] py-4 rounded-[24px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-xl shadow-palette-pink/30"
@@ -613,49 +518,41 @@ const RunView: React.FC<RunViewProps> = ({
         </div>
       )}
 
-      {/* Save options sheet */}
       {showSaveOptions && (
         <div className="fixed inset-0 z-[10000] flex items-end" onClick={() => setShowSaveOptions(false)}>
-          <div className="w-full bg-zinc-950 border-t border-white/10 rounded-t-[32px] p-6 pb-12 flex flex-col gap-3"
-            onClick={e => e.stopPropagation()}>
+          <div className="w-full bg-zinc-950 border-t border-white/10 rounded-t-[32px] p-6 pb-12 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-2" />
             <h3 className="text-white font-black text-lg text-center mb-2">Save Mix</h3>
 
-            {/* Save to Apple Music */}
             <button
               onClick={handleSaveToAppleMusicPrompt}
               className="w-full bg-zinc-900 border border-white/10 rounded-2xl py-4 flex items-center gap-3 px-5 active:bg-zinc-800"
             >
-              <span className="text-2xl">🎵</span>
+              <span className="text-2xl">&#127925;</span>
               <div className="text-left">
                 <div className="text-white font-black text-sm">Save to Apple Music</div>
                 <div className="text-zinc-500 text-xs">Creates a playlist in your Apple Music library</div>
               </div>
             </button>
 
-            {/* Save to Vault */}
             <button
               onClick={handleSaveToVaultPrompt}
               className="w-full bg-zinc-900 border border-white/10 rounded-2xl py-4 flex items-center gap-3 px-5 active:bg-zinc-800"
             >
-              <span className="text-2xl">📚</span>
+              <span className="text-2xl">&#128218;</span>
               <div className="text-left">
                 <div className="text-white font-black text-sm">Save to Vault</div>
                 <div className="text-zinc-500 text-xs">Archive this mix in your in-app history</div>
               </div>
             </button>
 
-            <button
-              onClick={() => setShowSaveOptions(false)}
-              className="w-full py-3 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400"
-            >
+            <button onClick={() => setShowSaveOptions(false)} className="w-full py-3 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400">
               Cancel
             </button>
           </div>
         </div>
       )}
 
-      {/* Naming prompt */}
       {namingPrompt && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 px-6">
           <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[28px] p-6 flex flex-col gap-4">
