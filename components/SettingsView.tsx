@@ -1,31 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { RuleSettings, DataSourceType, SpotifyUser, AppConfig } from '../types';
+import { RuleSettings, AppConfig } from '../types';
 import { BlockStore } from '../services/blockStore';
 import PerOptionRulesView from './PerOptionRulesView';
-import TestDataView from './TestDataView';
 import BlockedTracksView from './BlockedTracksView';
 import PodcastManagerView from './PodcastManagerView';
-import DeveloperToolsView from './DeveloperToolsView';
-import RapSourcesView from './RapSourcesView';
-import { SpotifyAuth } from '../services/spotifyAuth';
 import { appleMusicService } from '../services/appleMusicService';
 import { Haptics } from '../services/haptics';
-import { configStore } from '../services/configStore';
 import { toastService } from '../services/toastService';
-import { MUSIC_PLATFORM, MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
-import { musicProvider } from '../services/musicProvider';
+import { MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
 
 interface SettingsViewProps {
   config: AppConfig;
   rules: RuleSettings;
   setRules: React.Dispatch<React.SetStateAction<RuleSettings>>;
-  spotifyUser: SpotifyUser | null;
-  authError: string | null;
   authStatus: string;
   setAuthStatus: (s: any) => void;
 }
 
-export type SettingsMode = 'root' | 'perOption' | 'testData' | 'hiddenTracks' | 'podcasts' | 'devTools' | 'rapSources';
+export type SettingsMode = 'root' | 'perOption' | 'hiddenTracks' | 'podcasts';
 
 // ── Small reusable components ──────────────────────────────────────────
 
@@ -43,16 +35,15 @@ const SettingsRow: React.FC<{
   label: string;
   subtext: string;
   onClick: () => void;
-  highlight?: boolean;
-}> = ({ icon, label, subtext, onClick, highlight }) => (
+}> = ({ icon, label, subtext, onClick }) => (
   <button
     onClick={onClick}
-    className={`w-full px-6 py-5 flex items-center justify-between active:bg-white/5 transition-colors group ${highlight ? 'bg-palette-pink/5' : ''}`}
+    className="w-full px-6 py-5 flex items-center justify-between active:bg-white/5 transition-colors group"
   >
     <div className="flex items-center gap-4 text-left min-w-0">
       <span className="text-2xl group-active:scale-110 transition-transform shrink-0">{icon}</span>
       <div className="flex flex-col min-w-0">
-        <span className={`text-[20px] font-garet font-semibold transition-colors truncate ${highlight ? 'text-palette-pink' : 'text-[#A9E8DF]'}`}>
+        <span className="text-[20px] font-garet font-semibold transition-colors truncate text-[#A9E8DF]">
           {label}
         </span>
         <span className="text-[10px] text-zinc-600 font-medium truncate">{subtext}</span>
@@ -67,13 +58,10 @@ const SettingsRow: React.FC<{
 // ── Main SettingsView ──────────────────────────────────────────────────
 
 const SettingsView: React.FC<SettingsViewProps> = ({
-  config, rules, setRules, spotifyUser, authError, authStatus, setAuthStatus
+  config, rules, setRules, authStatus, setAuthStatus
 }) => {
   const [mode, setMode] = useState<SettingsMode>('root');
   const [blockedCount, setBlockedCount] = useState(0);
-  const [rapLinkedCount, setRapLinkedCount] = useState(0);
-
-  const isApple = MUSIC_PLATFORM === 'apple';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -83,9 +71,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
   useEffect(() => {
     setBlockedCount(BlockStore.getBlocked().length);
-    const sources = config.catalog.rapSources || {};
-    setRapLinkedCount(Object.values(sources).filter(s => s !== null).length);
-  }, [mode, config]);
+  }, [mode]);
 
   const toggle = (key: keyof RuleSettings) => {
     Haptics.medium();
@@ -93,26 +79,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleConnect = async () => {
-    if (isApple) {
-      Haptics.impact();
-      setAuthStatus('waiting');
-      try {
-        await appleMusicService.login();
-      } catch (e: any) {
-        setAuthStatus('error');
-        Haptics.error();
-        toastService.show(e.message, 'error');
-      }
-      return;
-    }
-    if (!config.spotifyClientId) {
-      toastService.show('Enter a Client ID first', 'warning');
-      return;
-    }
     Haptics.impact();
     setAuthStatus('waiting');
     try {
-      await SpotifyAuth.login();
+      await appleMusicService.login();
     } catch (e: any) {
       setAuthStatus('error');
       Haptics.error();
@@ -122,25 +92,18 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleDisconnect = () => {
     Haptics.impact();
-    if (confirm(`Disconnect ${isApple ? 'Apple Music' : 'Spotify'}? You'll need to reconnect to use the app.`)) {
-      if (isApple) {
-        appleMusicService.logout();
-      } else {
-        SpotifyAuth.logout();
-      }
+    if (confirm('Disconnect Apple Music? You will need to reconnect to use the app.')) {
+      appleMusicService.logout();
       window.location.reload();
     }
   };
 
   // ── Sub-view routing ──
   if (mode === 'perOption')    return <PerOptionRulesView onBack={() => setMode('root')} />;
-  if (mode === 'testData')     return <TestDataView onBack={() => setMode('root')} />;
   if (mode === 'hiddenTracks') return <BlockedTracksView onBack={() => setMode('root')} />;
   if (mode === 'podcasts')     return <PodcastManagerView onBack={() => setMode('root')} rules={rules} setRules={setRules} />;
-  if (mode === 'devTools')     return <DeveloperToolsView onBack={() => setMode('root')} config={config} />;
-  if (mode === 'rapSources')   return <RapSourcesView onBack={() => setMode('root')} />;
 
-  // ── Mood label helper ──
+  // ── Mood / Discovery labels ──
   const moodLabel = rules.moodLevel < MOOD_ZONES.ZEN_MAX
     ? 'Zen'
     : rules.moodLevel < MOOD_ZONES.FOCUS_MAX
@@ -153,7 +116,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     ? 'Familiar Territory'
     : 'Outside Your Norm';
 
-  // ── Root settings view ──
   return (
     <div className="flex flex-col gap-8 px-4 pt-24 pb-40 w-full">
       <header className="pl-4 stagger-entry stagger-1">
@@ -168,13 +130,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="px-6 py-5 flex items-center justify-between gap-4">
             <div className="flex flex-col min-w-0">
               <span className="text-[20px] font-garet font-medium text-[#A9E8DF] truncate">
-                {isApple ? 'Apple Music' : 'Spotify'}
+                Apple Music
               </span>
               <span className="text-[11px] text-zinc-500 font-medium truncate">
                 {authStatus === 'authorized'
-                  ? (spotifyUser?.display_name || 'Connected')
+                  ? 'Connected'
                   : authStatus === 'waiting'
-                  ? 'Connecting…'
+                  ? 'Connecting...'
                   : 'Not connected'}
               </span>
             </div>
@@ -197,12 +159,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-5 mb-3">Library</h2>
         <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
           <SettingsRow
-            icon="🎙️"
-            label="Rap Sources"
-            subtext={`${rapLinkedCount} playlist${rapLinkedCount !== 1 ? 's' : ''} linked`}
-            onClick={() => { Haptics.medium(); setMode('rapSources'); }}
-          />
-          <SettingsRow
             icon="🚫"
             label="Hidden Tracks"
             subtext={`${blockedCount} track${blockedCount !== 1 ? 's' : ''} blocked`}
@@ -220,15 +176,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             subtext="Fine-tune each mix independently"
             onClick={() => { Haptics.medium(); setMode('perOption'); }}
           />
-          {rules.devMode && (
-            <SettingsRow
-              icon="🛠️"
-              label="Developer Tools"
-              subtext="Advanced config & diagnostics"
-              onClick={() => { Haptics.medium(); setMode('devTools'); }}
-              highlight
-            />
-          )}
         </div>
       </section>
 
@@ -300,20 +247,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <Toggle checked={rules.avoidRepeats} onToggle={() => toggle('avoidRepeats')} />
           </div>
 
-        </div>
-      </section>
-
-      {/* ── Advanced ── */}
-      <section className="w-full stagger-entry stagger-5">
-        <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-5 mb-3">Advanced</h2>
-        <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
-          <div className="px-6 py-5 flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-[20px] font-garet font-medium text-[#A9E8DF]">Developer Mode</span>
-              <span className="text-[10px] text-zinc-600 font-medium">Enable internal plumbing tools</span>
-            </div>
-            <Toggle checked={rules.devMode} onToggle={() => toggle('devMode')} />
-          </div>
         </div>
       </section>
 
