@@ -3,10 +3,12 @@ import { RunOption, RuleSettings, RunResult, RunOptionType, Track } from '../typ
 import { RuleOverrideStore } from '../services/ruleOverrideStore';
 import { getEffectiveRules } from '../utils/ruleUtils';
 import { applePlaybackEngine } from '../services/playbackEngine';
+import { Haptics, ImpactFeedbackStyle } from '../services/haptics';
 import { musicProvider } from '../services/musicProvider';
 import { AppleMusicProvider } from '../services/appleMusicProvider';
 import { BlockStore } from '../services/blockStore';
-import { Haptics, ImpactFeedbackStyle } from '../services/haptics';
+import { apiLogger } from '../services/apiLogger';
+import { StatusAsterisk } from './HomeView';
 import { toastService } from '../services/toastService';
 import { USE_MOCK_DATA } from '../constants';
 
@@ -27,6 +29,8 @@ interface RunViewProps {
 
 type GenStatus = 'IDLE' | 'RUNNING' | 'DONE' | 'ERROR';
 type ViewMode = 'PREVIEW' | 'QUEUE';
+
+// ── TrackRow ───────────────────────────────────────────────────────────
 
 const TrackRow: React.FC<{
   track: Track;
@@ -57,9 +61,18 @@ const TrackRow: React.FC<{
 
     timerRef.current = setTimeout(() => {
       isLongPress.current = true;
-      onHaptic();
-      onBlock(track);
+      onStatusToggle(track);
     }, LONG_PRESS_DURATION);
+
+    const now = Date.now();
+    if (now - lastTapTime.current < 300) {
+      clearTimeout(timerRef.current);
+      onPlay(track, index);
+      Haptics.impactAsync(ImpactFeedbackStyle.Heavy);
+      lastTapTime.current = 0;
+      return;
+    }
+    lastTapTime.current = now;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -68,11 +81,12 @@ const TrackRow: React.FC<{
 
     if (Math.abs(deltaX) > MOVEMENT_THRESHOLD) {
       clearTimeout(timerRef.current);
+      setIsPressed(false);
     }
 
     if (deltaX < 0) {
       setIsSwiping(true);
-      setSwipeX(Math.max(SWIPE_LIMIT, deltaX));
+      setSwipeX(deltaX);
     }
   };
 
@@ -80,19 +94,13 @@ const TrackRow: React.FC<{
     clearTimeout(timerRef.current);
     setIsPressed(false);
 
-    if (!isLongPress.current) {
-      if (swipeX <= SWIPE_LIMIT / 2) {
-        const now = Date.now();
-        if (now - lastTapTime.current < 300) {
-          onStatusToggle(track);
-        } else {
-          onHaptic();
-          onBlock(track);
-        }
-        lastTapTime.current = now;
-      } else if (!isSwiping) {
-        onPlay(track, index);
-      }
+    if (!isLongPress.current && Math.abs(swipeX) < 10) {
+      Haptics.impactAsync(ImpactFeedbackStyle.Light);
+    }
+
+    if (!isLongPress.current && swipeX < SWIPE_LIMIT) {
+      Haptics.impactAsync(ImpactFeedbackStyle.Medium);
+      onBlock(track);
     }
 
     setSwipeX(0);
@@ -100,92 +108,84 @@ const TrackRow: React.FC<{
     touchStartX.current = null;
   };
 
-  const gemColor = track.status === 'gem'
-    ? 'text-[#C5A04D]'
-    : track.status === 'liked'
-    ? 'text-palette-teal'
-    : 'text-zinc-700';
-
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden bg-black first:rounded-t-[32px] last:rounded-b-[32px]">
       <div
-        className="absolute right-0 top-0 bottom-0 flex items-center justify-center bg-red-500/20 px-4"
-        style={{ opacity: Math.abs(swipeX) / 80, width: 80 }}
+        className="absolute inset-0 flex items-center justify-end px-10 transition-colors pointer-events-none"
+        style={{ backgroundColor: `rgba(255, 0, 122, ${Math.min(0.8, Math.abs(swipeX) / 100) * 0.3})` }}
       >
-        <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-        </svg>
+        <span
+          className="text-white font-black text-[12px] uppercase tracking-[0.4em]"
+          style={{ opacity: Math.min(1, Math.abs(swipeX) / 80) }}
+        >
+          Block
+        </span>
       </div>
-
-      <div
+      <button
+        onContextMenu={e => e.preventDefault()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={() => onPlay(track, index)}
-        style={{ transform: `translateX(${swipeX}px)`, transition: isSwiping ? 'none' : 'transform 0.3s ease' }}
-        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors select-none ${isActive ? 'bg-palette-teal/10' : isPressed ? 'bg-white/5' : 'bg-transparent'}`}
+        style={{
+          touchAction: 'pan-y',
+          transform: `translateX(${swipeX}px) ${isPressed ? 'scale(0.97)' : 'scale(1)'}`,
+          transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.23, 1, 0.32, 1)',
+        }}
+        className={`w-full flex items-center gap-4 p-5 transition-all group text-left select-none relative z-10 border-b border-[#6D28D9]/20 ${
+          isActive
+            ? 'bg-palette-teal/15 border-palette-teal/40 shadow-[inset_0_0_40px_rgba(45,185,177,0.15)]'
+            : 'bg-[#0a0a0a]/85 backdrop-blur-3xl hover:bg-white/5 active:bg-palette-teal/5'
+        }`}
       >
-        <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-900">
-          {track.imageUrl ? (
-            <img src={track.imageUrl} alt={track.album} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-zinc-700" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-              </svg>
-            </div>
-          )}
+        <div className="relative shrink-0 flex items-center justify-center min-w-[24px]">
+          <StatusAsterisk status={track.status || 'none'} />
         </div>
-
-        <div className="flex-1 min-w-0">
-          <div className={`font-black text-[13px] truncate leading-tight ${isActive ? 'text-palette-teal' : 'text-white'}`}>
-            {track.title}
-          </div>
-          <div className="text-zinc-500 text-[11px] truncate font-medium">{track.artist}</div>
+        <div
+          className={`w-12 h-12 rounded-2xl bg-zinc-900 overflow-hidden shrink-0 border relative pointer-events-none transition-all duration-500 ${
+            isActive ? 'border-palette-teal/60 scale-105 shadow-[0_0_20px_rgba(45,185,177,0.4)]' : 'border-white/10'
+          }`}
+        >
+          <img src={track.imageUrl} alt="" className="w-full h-full object-cover" />
+          {isActive && <div className="absolute inset-0 bg-palette-teal/15 animate-pulse" />}
         </div>
-
-        {track.isNew && (
-          <span className="text-[8px] font-black uppercase tracking-widest text-palette-pink border border-palette-pink/30 rounded px-1.5 py-0.5 flex-shrink-0">
-            New
-          </span>
-        )}
-
-        {isActive ? (
-          <div className="flex gap-[3px] items-end h-4 flex-shrink-0">
-            {[1, 2, 3].map(b => (
-              <div key={b} className="w-[3px] bg-palette-teal rounded-full animate-bounce"
-                style={{ height: `${b * 4}px`, animationDelay: `${b * 0.15}s` }} />
-            ))}
-          </div>
-        ) : (
-          <button
-            onClick={e => { e.stopPropagation(); onStatusToggle(track); }}
-            className={`flex-shrink-0 transition-colors active:scale-125 ${gemColor}`}
+        <div className="flex-1 min-w-0 pointer-events-none">
+          <h4
+            className={`text-[15px] font-gurmukhi leading-tight transition-colors duration-300 truncate ${
+              isActive ? 'text-palette-teal' : 'text-[#D1F2EB] group-active:text-palette-teal'
+            }`}
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71L12 2z" />
-            </svg>
-          </button>
-        )}
-      </div>
+            {track.title}
+          </h4>
+          <p className="text-[11px] text-zinc-500 font-medium truncate mt-1 font-garet">{track.artist}</p>
+        </div>
+        <div
+          className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${
+            isActive ? 'bg-palette-teal scale-125 shadow-[0_0_10px_rgba(45,185,177,1)]' : 'bg-zinc-800'
+          }`}
+        />
+      </button>
     </div>
   );
 };
 
+// ── RunView ────────────────────────────────────────────────────────────
+
 const RunView: React.FC<RunViewProps> = ({
   option, rules, onClose, onComplete, initialResult,
-  onResultUpdate, onPlayTriggered, onPreviewStarted, isQueueMode, onRegenerate
+  onResultUpdate, onPlayTriggered, onPreviewStarted, isQueueMode, onRegenerate,
 }) => {
   const [genStatus, setGenStatus] = useState<GenStatus>(initialResult ? 'DONE' : 'IDLE');
   const [viewMode, setViewMode] = useState<ViewMode>(isQueueMode ? 'QUEUE' : 'PREVIEW');
+
   const [showSaveOptions, setShowSaveOptions] = useState(false);
-  const [namingPrompt, setNamingPrompt] = useState<'vault' | 'apple' | null>(null);
-  const [saveName, setSaveName] = useState('');
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [namingDestination, setNamingDestination] = useState<'apple' | 'vault' | null>(null);
+  const [editName, setEditName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
   const [currentPlayingUri, setCurrentPlayingUri] = useState<string | null>(null);
   const [result, setResult] = useState<RunResult | null>(initialResult || null);
   const [error, setError] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
 
   const generationRequestId = useRef(0);
   const effectiveRules = getEffectiveRules(rules, RuleOverrideStore.getForOption(option.id));
@@ -195,35 +195,29 @@ const RunView: React.FC<RunViewProps> = ({
     if (el) (el as HTMLInputElement).click();
   };
 
+  // ── Startup ──────────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (initialResult) {
-      setResult(initialResult);
-      setGenStatus('DONE');
-      return;
-    }
+    if (viewMode !== 'QUEUE') onPreviewStarted?.();
+    if (initialResult) { setResult(initialResult); setGenStatus('DONE'); return; }
     if (genStatus === 'IDLE') startRun();
 
+    // Poll MusicKit for currently playing track
     const poll = setInterval(async () => {
       try {
         const state = await musicProvider.getPlaybackStatus();
-        if (state?.currentTrack?.uri) {
-          setCurrentPlayingUri(state.currentTrack.uri);
-          setIsPlaying(state.isPlaying);
-        }
+        if (state?.currentTrack?.uri) setCurrentPlayingUri(state.currentTrack.uri);
       } catch { }
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(poll);
   }, [option, rules, initialResult]);
 
-  useEffect(() => {
-    if (viewMode !== 'QUEUE') onPreviewStarted?.();
-  }, [viewMode]);
+  // ── Generation ───────────────────────────────────────────────────────
 
   const startRun = async () => {
     generationRequestId.current++;
     const reqId = generationRequestId.current;
-
     setGenStatus('RUNNING');
     setError(null);
     Haptics.medium();
@@ -231,7 +225,6 @@ const RunView: React.FC<RunViewProps> = ({
     try {
       const runResult = await applePlaybackEngine.generateRunResult(option, effectiveRules);
       if (reqId !== generationRequestId.current) return;
-
       setResult(runResult);
       setGenStatus('DONE');
       onResultUpdate?.(runResult);
@@ -245,6 +238,8 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
+  // ── Playback ─────────────────────────────────────────────────────────
+
   const handlePlayAll = async () => {
     if (!result?.tracks || result.tracks.length === 0) return;
     Haptics.heavy();
@@ -254,11 +249,9 @@ const RunView: React.FC<RunViewProps> = ({
         window.location.href = 'podcasts://';
         return;
       }
-
       const uris = result.tracks.map(t => t.uri);
       await musicProvider.play(uris, 0);
       setViewMode('QUEUE');
-      setIsPlaying(true);
       onPlayTriggered?.();
       toastService.show('Mix loaded into Apple Music', 'success');
     } catch (err: any) {
@@ -273,7 +266,6 @@ const RunView: React.FC<RunViewProps> = ({
       const uris = result.tracks.map(t => t.uri);
       await musicProvider.play(uris, index);
       setCurrentPlayingUri(track.uri);
-      setIsPlaying(true);
       onPlayTriggered?.();
       Haptics.light();
     } catch (err: any) {
@@ -281,35 +273,52 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
+  // ── Source switching (Apple devices via AirPlay) ───────────────────
+
+  const handleOpenSource = () => {
+    Haptics.medium();
+    // Trigger native AirPlay picker via MusicKit
+    try {
+      const music = (window as any).MusicKit?.getInstance();
+      if (music && music.showPlaybackTargetPicker) {
+        music.showPlaybackTargetPicker();
+      } else {
+        toastService.show('Use AirPlay in Control Center to switch devices', 'info');
+      }
+    } catch {
+      toastService.show('Use AirPlay in Control Center to switch devices', 'info');
+    }
+  };
+
+  // ── Gem / Block ───────────────────────────────────────────────────────
+
   const handleToggleStatus = async (track: Track) => {
     if (!result?.tracks) return;
     const isGem = track.status === 'gem';
-    const newStatus = isGem ? 'none' : 'gem';
+    const newStatus: 'gem' | 'none' = isGem ? 'none' : 'gem';
 
     const originalTracks = [...result.tracks];
     const updatedTracks = result.tracks.map(t =>
-      t.id === track.id ? { ...t, status: newStatus as 'gem' | 'none' | 'liked' } : t
+      t.id === track.id ? { ...t, status: newStatus } : t
     );
     const updatedResult = { ...result, tracks: updatedTracks };
     setResult(updatedResult);
     onResultUpdate?.(updatedResult);
 
-    if (!isGem) {
-      Haptics.success();
-      try {
-        if (!USE_MOCK_DATA) {
-          await appleLibrary.addTrackToGems(track.id);
-        }
-        toastService.show('Added to GetReady Gems', 'success');
-      } catch (err: any) {
-        setResult({ ...result, tracks: originalTracks });
-        onResultUpdate?.({ ...result, tracks: originalTracks });
-        toastService.show('Could not save to Apple Music', 'error');
+    try {
+      if (newStatus === 'gem') {
+        Haptics.success();
+        if (!USE_MOCK_DATA) await appleLibrary.addTrackToGems(track.id);
+        toastService.show('Added to Gems', 'success');
+      } else {
+        Haptics.medium();
+        if (!USE_MOCK_DATA) await appleLibrary.removeTrackFromGems(track.id);
+        toastService.show('Removed from Gems', 'info');
       }
-    } else {
-      Haptics.medium();
-      await appleLibrary.removeTrackFromGems(track.id);
-      toastService.show('Gem removed', 'info');
+    } catch (err: any) {
+      setResult({ ...result, tracks: originalTracks });
+      onResultUpdate?.({ ...result, tracks: originalTracks });
+      apiLogger.logError(`Gems toggle failed for ${track.id}: ${err.message}`);
     }
   };
 
@@ -324,38 +333,40 @@ const RunView: React.FC<RunViewProps> = ({
     toastService.show('Track hidden from future mixes', 'info');
   };
 
-  const handleSaveToVaultPrompt = () => {
-    setSaveName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
-    setNamingPrompt('vault');
+  // ── Save ──────────────────────────────────────────────────────────────
+
+  const handleSaveToVault = () => {
+    setEditName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
+    setNamingDestination('vault');
     setShowSaveOptions(false);
   };
 
-  const handleSaveToAppleMusicPrompt = () => {
-    setSaveName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
-    setNamingPrompt('apple');
+  const handleSaveToAppleMusic = () => {
+    setEditName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
+    setNamingDestination('apple');
     setShowSaveOptions(false);
   };
 
   const handleConfirmSave = async () => {
-    if (!saveName.trim() || !result) return;
+    if (!editName.trim() || !result) return;
     Haptics.impact();
 
-    if (namingPrompt === 'vault') {
-      const updatedResult = { ...result, playlistName: saveName.trim() };
+    if (namingDestination === 'vault') {
+      const updatedResult = { ...result, playlistName: editName.trim() };
       onComplete(updatedResult);
-      toastService.show(`Archived as "${saveName.trim()}"`, 'success');
-      setNamingPrompt(null);
-    } else if (namingPrompt === 'apple') {
+      toastService.show(`Archived as "${editName.trim()}"`, 'success');
+      setNamingDestination(null);
+    } else if (namingDestination === 'apple') {
       setIsSaving(true);
       try {
         const trackIds = (result.tracks || []).map(t => t.id);
-        const playlist = await appleLibrary.createContainer(saveName.trim(), `Generated by GetReady - ${option.name}`);
+        const playlist = await appleLibrary.createContainer(editName.trim(), `Generated by GetReady - ${option.name}`);
         await appleLibrary.addTracksToPlaylist(playlist.id, trackIds);
         Haptics.success();
-        toastService.show(`"${saveName.trim()}" saved to Apple Music`, 'success');
-        setNamingPrompt(null);
+        toastService.show(`"${editName.trim()}" saved to Apple Music`, 'success');
+        setNamingDestination(null);
       } catch (err: any) {
-        toastService.show(`Apple Music save failed: ${err.message}`, 'error');
+        toastService.show(err.message || 'Save failed', 'error');
       } finally {
         setIsSaving(false);
       }
@@ -368,11 +379,15 @@ const RunView: React.FC<RunViewProps> = ({
     startRun();
   };
 
+  // ── Duration ──────────────────────────────────────────────────────────
+
   const totalDurationStr = useMemo(() => {
     if (!result?.tracks) return null;
     const mins = Math.floor(result.tracks.reduce((acc, t) => acc + (t.durationMs || 0), 0) / 60000);
     return mins > 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} mins`;
   }, [result]);
+
+  // ── Loading / Error screens ───────────────────────────────────────────
 
   if (genStatus === 'RUNNING') {
     return (
@@ -389,7 +404,7 @@ const RunView: React.FC<RunViewProps> = ({
   if (genStatus === 'ERROR') {
     return (
       <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center p-8 gap-6">
-        <div className="text-5xl">&#9888;&#65039;</div>
+        <div className="text-5xl">⚠️</div>
         <h2 className="text-3xl font-mango text-palette-pink">Mix Failed</h2>
         <p className="text-zinc-500 text-center text-sm max-w-xs">{error}</p>
         <button
@@ -405,65 +420,88 @@ const RunView: React.FC<RunViewProps> = ({
     );
   }
 
+  // ── Main UI ───────────────────────────────────────────────────────────
+
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col animate-in slide-in-from-bottom duration-500 pb-[85px]">
 
-      <header className="px-6 pb-4 flex items-center justify-between border-b border-white/5 bg-black/30 shrink-0 pt-16">
+      {/* Top bar */}
+      <header className="px-6 pb-6 flex items-center justify-between border-b border-white/5 bg-black/30 shrink-0 pt-16">
         <button
           onClick={() => { Haptics.impactAsync(ImpactFeedbackStyle.Light); onClose(); }}
-          className="text-palette-pink text-[14px] font-black uppercase tracking-[0.2em] active:opacity-50"
+          className="text-palette-pink text-[14px] font-black uppercase tracking-[0.2em] active:opacity-50 transition-opacity"
         >
           Back
         </button>
-
         <div className="flex flex-col items-center">
           <span className="font-black text-[10px] uppercase tracking-[0.5em] text-zinc-600 leading-none">
-            {viewMode === 'QUEUE' ? 'Now Playing' : 'Preview Mix'}
+            {viewMode === 'QUEUE' ? 'Active Queue' : 'Preview Mix'}
           </span>
-          <span className="font-mango text-white text-xl mt-0.5 leading-none">{option.name}</span>
-          {result?.sourceSummary && (
-            <span className="text-[9px] text-zinc-600 font-medium mt-1 uppercase tracking-widest truncate max-w-[200px]">
-              {result.sourceSummary}
-            </span>
-          )}
         </div>
-
-        <button
-          onClick={viewMode === 'PREVIEW' ? handlePlayAll : () => setViewMode('PREVIEW')}
-          className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all active:scale-95 ${
-            viewMode === 'PREVIEW'
-              ? 'bg-palette-pink shadow-[0_0_16px_rgba(255,0,122,0.4)]'
-              : 'bg-zinc-900 border border-white/10'
-          }`}
-        >
-          <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-            {viewMode === 'PREVIEW' ? (
-              <path d="M8 5v14l11-7z" />
-            ) : (
-              <path d="M4 6h16M4 12h16M4 18h16" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
-            )}
-          </svg>
-          <span className="font-black text-[9px] uppercase tracking-wider text-white leading-none">
-            {viewMode === 'PREVIEW' ? 'Play' : 'List'}
-          </span>
-        </button>
+        <div className="w-12" />
       </header>
 
-      <div className="flex-1 overflow-y-auto ios-scroller">
-        <div className="px-4 py-4 flex flex-col gap-2">
-          {totalDurationStr && result?.tracks && (
-            <div className="flex items-center justify-between px-2 mb-2">
-              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-                {result.tracks.length} tracks
-              </span>
-              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-                {totalDurationStr}
-              </span>
-            </div>
-          )}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto ios-scroller p-6 flex flex-col gap-8 pb-[180px] overflow-x-hidden w-full">
+        <div className="flex flex-col gap-6">
 
-          <div className="bg-[#0a0a0a]/60 backdrop-blur-3xl rounded-[32px] overflow-hidden border border-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)]">
-            <div className="divide-y divide-white/5">
+          {/* Title + pill badges */}
+          <header className="flex flex-col gap-4 px-4 stagger-entry stagger-1">
+            <div className="w-full overflow-hidden whitespace-nowrap relative py-2">
+              <h2 className="leading-none font-mango header-ombre tracking-tighter drop-shadow-2xl text-7xl animate-[marquee_15s_linear_infinite] pb-2">
+                {option.name}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-3 w-full">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="bg-palette-gold/10 border border-palette-gold/30 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                  <span className="text-palette-gold text-[10px] font-black uppercase tracking-[0.15em] leading-none">
+                    {result?.tracks?.length || 0} Tracks
+                  </span>
+                </div>
+                <div className="bg-[#6D28D9]/10 border border-[#6D28D9]/30 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                  <span className="text-[#8B5CF6] text-[10px] font-black uppercase tracking-[0.15em]">
+                    {totalDurationStr}
+                  </span>
+                </div>
+              </div>
+
+              {/* Play Mix / Source pill */}
+              {genStatus === 'DONE' && (
+                <button
+                  onClick={() => {
+                    Haptics.impactAsync(ImpactFeedbackStyle.Light);
+                    if (viewMode === 'PREVIEW') {
+                      handlePlayAll();
+                    } else {
+                      handleOpenSource();
+                    }
+                  }}
+                  className={`flex-1 relative overflow-hidden px-4 py-2.5 rounded-[20px] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border ${
+                    viewMode === 'PREVIEW'
+                      ? 'border-palette-pink/40 bg-palette-pink/15 text-palette-pink shadow-palette-pink/20'
+                      : 'border-palette-emerald/40 bg-palette-emerald/15 text-palette-emerald shadow-palette-emerald/20'
+                  }`}
+                >
+                  <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    {viewMode === 'PREVIEW' ? (
+                      <path d="M8 5v14l11-7z" />
+                    ) : (
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+                    )}
+                  </svg>
+                  <span className="font-black text-[11px] uppercase tracking-wider leading-[1.1] text-left">
+                    {viewMode === 'PREVIEW' ? 'Play Mix' : 'Source'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* Track list — gold border, purple dividers */}
+          <div className="bg-[#0a0a0a]/60 backdrop-blur-3xl rounded-[32px] overflow-hidden border border-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] stagger-entry stagger-3">
+            <div className="divide-y divide-[#6D28D9]/20">
               {result?.tracks?.map((track, i) => (
                 <TrackRow
                   key={track.uri + i}
@@ -481,105 +519,116 @@ const RunView: React.FC<RunViewProps> = ({
         </div>
       </div>
 
+      {/* Bottom bar — Preview mode only: REGENERATE + SAVE */}
       {viewMode === 'PREVIEW' && (
-        <div className="fixed left-0 right-0 px-6 pt-10 pb-3 bg-gradient-to-t from-black via-black/95 to-transparent z-[100]" style={{ bottom: '85px' }}>
+        <div
+          className="fixed left-0 right-0 px-6 pt-10 pb-3 bg-gradient-to-t from-black via-black/95 to-transparent z-[100]"
+          style={{ bottom: '85px' }}
+        >
           <div className="flex items-center gap-4">
             <button
               onClick={handleRegenerate}
-              className="w-14 h-14 rounded-[24px] bg-zinc-900 border border-white/10 flex items-center justify-center text-palette-gold active:scale-95 transition-all shadow-xl"
+              className="flex-1 relative overflow-hidden bg-zinc-900 border border-white/10 text-palette-gold font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                   strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
+              <span className="text-sm font-garet font-bold uppercase tracking-widest">Regenerate</span>
             </button>
 
             <button
               onClick={() => { Haptics.heavy(); setShowSaveOptions(true); }}
-              className="flex-1 relative overflow-hidden bg-zinc-900 border border-white/10 py-4 rounded-[24px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-xl"
+              className="flex-1 relative overflow-hidden bg-palette-pink text-white font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-2xl shadow-palette-pink/30 border border-white/10"
             >
-              <svg className="w-5 h-5 text-palette-gold" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+              <div className="absolute top-1 left-2 w-[90%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-full blur-[1px] animate-jelly-shimmer pointer-events-none" />
+              <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
-              <span className="text-white font-black text-sm uppercase tracking-widest">Save</span>
-            </button>
-
-            <button
-              onClick={handlePlayAll}
-              className="flex-1 relative overflow-hidden bg-gradient-to-br from-[#FF007A] via-[#FF1A8B] to-[#FF4D9F] py-4 rounded-[24px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-xl shadow-palette-pink/30"
-            >
-              <div className="absolute top-1 left-2 w-[90%] h-[40%] bg-gradient-to-b from-white/30 to-transparent rounded-full blur-[1px] pointer-events-none" />
-              <svg className="w-5 h-5 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              <span className="text-white font-black text-sm uppercase tracking-widest relative z-10">Play</span>
+              <span className="text-sm font-garet font-bold uppercase tracking-widest relative z-10">Save</span>
             </button>
           </div>
         </div>
       )}
 
+      {/* Save options sheet */}
       {showSaveOptions && (
-        <div className="fixed inset-0 z-[10000] flex items-end" onClick={() => setShowSaveOptions(false)}>
-          <div className="w-full bg-zinc-950 border-t border-white/10 rounded-t-[32px] p-6 pb-12 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-2" />
-            <h3 className="text-white font-black text-lg text-center mb-2">Save Mix</h3>
-
+        <div
+          className="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300"
+          onClick={() => setShowSaveOptions(false)}
+        >
+          <div
+            className="bg-zinc-900 border border-white/10 rounded-[44px] p-8 w-full max-w-sm flex flex-col gap-6 shadow-2xl animate-in zoom-in duration-500"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="text-center">
+              <h2 className="text-4xl font-mango text-[#D1F2EB] leading-none">Save Playlist</h2>
+              <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-2">Persistence Flow</p>
+            </header>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleSaveToAppleMusic}
+                className="w-full py-6 rounded-[28px] bg-palette-teal/10 border border-palette-teal/40 text-palette-teal flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg"
+              >
+                <span className="font-garet font-black text-[13px] uppercase tracking-widest">Save to Apple Music</span>
+                <span className="text-[9px] opacity-70 font-bold">Create Official Playlist</span>
+              </button>
+              <button
+                onClick={handleSaveToVault}
+                className="w-full py-6 rounded-[28px] bg-palette-gold/10 border border-palette-gold/40 text-palette-gold flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg"
+              >
+                <span className="font-garet font-black text-[13px] uppercase tracking-widest">Save to Vault</span>
+                <span className="text-[9px] opacity-70 font-bold">Internal App History</span>
+              </button>
+            </div>
             <button
-              onClick={handleSaveToAppleMusicPrompt}
-              className="w-full bg-zinc-900 border border-white/10 rounded-2xl py-4 flex items-center gap-3 px-5 active:bg-zinc-800"
-            >
-              <span className="text-2xl">&#127925;</span>
-              <div className="text-left">
-                <div className="text-white font-black text-sm">Save to Apple Music</div>
-                <div className="text-zinc-500 text-xs">Creates a playlist in your Apple Music library</div>
-              </div>
-            </button>
-
-            <button
-              onClick={handleSaveToVaultPrompt}
-              className="w-full bg-zinc-900 border border-white/10 rounded-2xl py-4 flex items-center gap-3 px-5 active:bg-zinc-800"
-            >
-              <span className="text-2xl">&#128218;</span>
-              <div className="text-left">
-                <div className="text-white font-black text-sm">Save to Vault</div>
-                <div className="text-zinc-500 text-xs">Archive this mix in your in-app history</div>
-              </div>
-            </button>
-
-            <button onClick={() => setShowSaveOptions(false)} className="w-full py-3 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400">
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {namingPrompt && (
-        <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 px-6">
-          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-[28px] p-6 flex flex-col gap-4">
-            <h3 className="text-white font-black text-lg">
-              {namingPrompt === 'apple' ? 'Name Apple Music Playlist' : 'Name This Mix'}
-            </h3>
-            <input
-              type="text"
-              value={saveName}
-              onChange={e => setSaveName(e.target.value)}
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white font-medium text-sm outline-none focus:border-palette-pink/50"
-              autoFocus
-            />
-            <button
-              onClick={handleConfirmSave}
-              disabled={isSaving}
-              className="w-full bg-palette-pink text-white font-black uppercase tracking-widest text-sm py-3 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {isSaving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
-            <button
-              onClick={() => setNamingPrompt(null)}
+              onClick={() => setShowSaveOptions(false)}
               className="w-full py-2 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400"
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Naming prompt */}
+      {namingDestination && (
+        <div className="fixed inset-0 z-[10002] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div
+            className="bg-zinc-900 border border-white/10 rounded-[44px] p-8 w-full max-w-sm flex flex-col gap-6 shadow-2xl animate-in zoom-in duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <header>
+              <h2 className="text-4xl font-mango text-[#D1F2EB] leading-none">Name your playlist</h2>
+              <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-2">Finalize record title</p>
+            </header>
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                autoFocus
+                className={`bg-black/40 border ${editName.trim() === '' ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-[#D1F2EB] font-garet font-bold outline-none focus:border-palette-pink transition-all`}
+              />
+              {editName.trim() === '' && (
+                <span className="text-[9px] text-red-500 font-bold uppercase tracking-widest px-1">Name cannot be empty</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleConfirmSave}
+                disabled={editName.trim() === '' || isSaving}
+                className="w-full bg-palette-pink text-white font-black py-5 rounded-[24px] active:scale-95 transition-all font-garet uppercase tracking-widest text-xs shadow-xl shadow-palette-pink/20 disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => setNamingDestination(null)}
+                className="w-full py-2 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
