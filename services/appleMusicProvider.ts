@@ -188,9 +188,16 @@ export class AppleMusicProvider implements IMusicProvider {
   async play(uris: string[], index: number = 0): Promise<void> {
     const music = mk();
     if (!music) return;
-    // Library tracks use 'library-songs' queue type, not 'songs'
-    // startPosition tells MusicKit which index to start at
-    await music.setQueue({ 'library-songs': uris, startPosition: index });
+
+    // MusicKit JS requires MediaItem objects in the items array, not raw strings.
+    // We build minimal descriptor objects — MusicKit resolves them at playback time.
+    const items = uris.map(id => ({
+      id,
+      type: 'library-songs',
+      attributes: {},
+    }));
+
+    await music.setQueue({ items, startPosition: index });
     await music.play();
   }
 
@@ -313,18 +320,26 @@ export class AppleMusicProvider implements IMusicProvider {
     if (!music) throw new Error('MusicKit not initialized');
     if (!music.isAuthorized) throw new Error('Not authorized with Apple Music');
 
-    // MusicKit JS requires fetchOptions wrapper for POST requests
-    const response = await music.api.music('/v1/me/library/playlists', {
-      fetchOptions: {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          attributes: { name, description },
-        }),
+    // Use direct fetch — music.api.music() doesn't reliably support POST bodies
+    const response = await fetch('https://api.music.apple.com/v1/me/library/playlists', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${music.developerToken}`,
+        'Music-User-Token': music.musicUserToken,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        attributes: { name, description },
+      }),
     });
 
-    const playlist = response?.data?.data?.[0];
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Playlist creation failed (${response.status}): ${text}`);
+    }
+
+    const json = await response.json();
+    const playlist = json?.data?.[0];
     if (!playlist?.id) throw new Error('Playlist creation returned no ID');
     return { id: playlist.id, name };
   }
@@ -335,18 +350,25 @@ export class AppleMusicProvider implements IMusicProvider {
 
     const chunkSize = 100;
     for (let i = 0; i < trackIds.length; i += chunkSize) {
-      // Library tracks use type 'library-songs', catalog tracks use 'songs'
       const chunk = trackIds.slice(i, i + chunkSize).map(id => ({
         id,
-        type: id.startsWith('i.') ? 'library-songs' : 'songs',
+        type: 'library-songs',
       }));
-      await music.api.music(`/v1/me/library/playlists/${playlistId}/tracks`, {
-        fetchOptions: {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: chunk }),
+
+      const response = await fetch(`https://api.music.apple.com/v1/me/library/playlists/${playlistId}/tracks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${music.developerToken}`,
+          'Music-User-Token': music.musicUserToken,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ data: chunk }),
       });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Add tracks failed (${response.status}): ${text}`);
+      }
     }
   }
 
