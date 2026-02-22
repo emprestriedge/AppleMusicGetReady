@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { RunRecord, RunOption, RunOptionType } from '../types';
 import RunView from './RunView';
 import { SMART_MIX_MODES, MUSIC_BUTTONS, PODCAST_OPTIONS, MOOD_ZONES } from '../constants';
@@ -34,8 +34,10 @@ const VaultRecordRow: React.FC<{
   const [swipeX, setSwipeX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const SWIPE_LIMIT = -100;
-  const DELETE_THRESHOLD = -140;
+
+  // Increase SWIPE_LIMIT so user can physically reach DELETE_THRESHOLD
+  const SWIPE_LIMIT = -160;
+  const DELETE_THRESHOLD = -120;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -46,13 +48,13 @@ const VaultRecordRow: React.FC<{
     const deltaX = e.touches[0].clientX - touchStartX.current;
     if (deltaX < 0) {
       setIsSwiping(true);
-      setSwipeX(Math.max(deltaX, SWIPE_LIMIT - 40));
+      setSwipeX(Math.max(deltaX, SWIPE_LIMIT));
     }
   };
 
   const handleTouchEnd = () => {
-    if (swipeX < DELETE_THRESHOLD) {
-      Haptics.impact();
+    if (swipeX <= DELETE_THRESHOLD) {
+      Haptics.heavy();
       onDelete(record.id);
     }
     setSwipeX(0);
@@ -154,11 +156,16 @@ const VaultRecordRow: React.FC<{
   );
 };
 
-const HistoryView: React.FC<HistoryViewProps> = ({ history, onPreviewStarted, onPlayTriggered }) => {
+const HistoryView: React.FC<HistoryViewProps> = ({ history: initialHistory, onPreviewStarted, onPlayTriggered }) => {
+  // Use local state so deletes reflect immediately without page reload
+  const [history, setHistory] = useState<RunRecord[]>(initialHistory);
   const [viewingRecord, setViewingRecord] = useState<RunRecord | null>(null);
   const [applePromptRecord, setApplePromptRecord] = useState<RunRecord | null>(null);
   const [playlistName, setPlaylistName] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Keep in sync if parent updates (e.g. new saves)
+  useEffect(() => { setHistory(initialHistory); }, [initialHistory]);
 
   const handleOpenDetail = (record: RunRecord) => {
     Haptics.light();
@@ -167,15 +174,14 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onPreviewStarted, on
   };
 
   const handleDeleteRecord = (id: string) => {
-    Haptics.medium();
-    const saved = localStorage.getItem('spotify_buddy_history');
-    if (saved) {
-      const list: RunRecord[] = JSON.parse(saved);
-      const filtered = list.filter(r => r.id !== id);
+    Haptics.heavy();
+    // Update local state immediately — no page reload needed
+    setHistory(prev => {
+      const filtered = prev.filter(r => r.id !== id);
       localStorage.setItem('spotify_buddy_history', JSON.stringify(filtered));
-      toastService.show('Record deleted', 'info');
-      setTimeout(() => window.location.reload(), 500);
-    }
+      return filtered;
+    });
+    toastService.show('Record deleted', 'info');
   };
 
   const handlePlayRecord = async (record: RunRecord) => {
