@@ -189,15 +189,16 @@ export class AppleMusicProvider implements IMusicProvider {
     const music = mk();
     if (!music) return;
 
-    // MusicKit JS requires MediaItem objects in the items array, not raw strings.
-    // We build minimal descriptor objects — MusicKit resolves them at playback time.
-    const items = uris.map(id => ({
-      id,
-      type: 'library-songs',
-      attributes: {},
-    }));
+    // Build proper MusicKit MediaItem descriptors
+    const mediaItems = uris.map(id =>
+      new (window as any).MusicKit.MediaItem({
+        id,
+        type: 'library-songs',
+        attributes: {},
+      })
+    );
 
-    await music.setQueue({ items, startPosition: index });
+    await music.setQueue({ items: mediaItems, startPosition: index });
     await music.play();
   }
 
