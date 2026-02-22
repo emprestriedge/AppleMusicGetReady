@@ -359,13 +359,28 @@ export class AppleMusicProvider implements IMusicProvider {
             !(t.artistName || t.artist || '').toLowerCase().includes('avenged sevenfold')
           );
 
-          // Save full pool to cache
+          // Save slim version to cache (full objects may exceed localStorage 5MB limit)
           try {
+            const slim = allTracks.map((t: any) => ({
+              id: t.id,
+              uri: t.uri || t.id,
+              name: t.name,
+              artist: t.artistName || t.artist,
+              artistName: t.artistName || t.artist,
+              album: t.albumName || t.album || '',
+              albumName: t.albumName || t.album || '',
+              duration_ms: t.duration_ms || t.durationMs || 0,
+              imageUrl: t.imageUrl || '',
+              playParams: t.playParams || null,
+            }));
             localStorage.setItem(CACHE_KEY, JSON.stringify({
               timestamp: Date.now(),
-              data: allTracks,
+              data: slim,
             }));
-          } catch {}
+            console.log(`[A7X] Cached ${slim.length} tracks`);
+          } catch (e) {
+            console.warn('[A7X] Cache save failed:', e);
+          }
         }
 
         // Shuffle both pools independently
