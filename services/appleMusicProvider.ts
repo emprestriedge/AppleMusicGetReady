@@ -116,51 +116,67 @@ async function fetchLibraryTracks(music: any): Promise<SpotifyTrack[]> {
 
 // Helper to search Apple Music CATALOG by artist names (includes songs not in library)
 async function fetchTracksByArtistsCatalog(music: any, artistNames: string[], storefront: string = 'us', limitPerArtist: number = 12): Promise<SpotifyTrack[]> {
-  const results = await Promise.all(artistNames.map(async (artist) => {
-    try {
-      // Use direct fetch — music.api.music() throws 500 errors on catalog search
-      const encodedArtist = encodeURIComponent(artist);
-      const response = await fetch(
-        `https://api.music.apple.com/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=${limitPerArtist}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${music.developerToken}`,
-            'Music-User-Token': music.musicUserToken,
-          },
-        }
-      );
-      if (!response.ok) return [];
-      const json = await response.json();
-      const items = json?.results?.songs?.data || [];
+  // Process in batches of 5 with a delay to avoid Apple's 429 rate limit
+  const BATCH_SIZE = 5;
+  const BATCH_DELAY_MS = 300;
+  const allResults: SpotifyTrack[][] = [];
 
-      const artistLower = artist.toLowerCase();
-      return items
-        .filter((item: any) => {
-          const songArtist = item.attributes?.artistName?.toLowerCase() || '';
-          return songArtist.includes(artistLower) || artistLower.includes(songArtist.split('&')[0].trim());
-        })
-        .map((item: any) => {
-          const attr = item.attributes || {};
-          return {
-            id: item.id,
-            uri: item.id,
-            name: attr.name || 'Unknown',
-            artist: attr.artistName || 'Unknown Artist',
-            artistName: attr.artistName || 'Unknown Artist',
-            album: attr.albumName || '',
-            albumName: attr.albumName || '',
-            duration_ms: attr.durationInMillis || 0,
-            explicit: attr.contentRating === 'explicit',
-            imageUrl: attr.artwork
-              ? attr.artwork.url.replace('{w}', '300').replace('{h}', '300')
-              : undefined,
-          };
-        });
-    } catch (err) {
-      console.warn(`Error searching catalog for artist "${artist}":`, err);
-      return [];
+  for (let i = 0; i < artistNames.length; i += BATCH_SIZE) {
+    const batch = artistNames.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async (artist) => {
+      try {
+        const encodedArtist = encodeURIComponent(artist);
+        const response = await fetch(
+          `https://api.music.apple.com/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=${limitPerArtist}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${music.developerToken}`,
+              'Music-User-Token': music.musicUserToken,
+            },
+          }
+        );
+        if (!response.ok) {
+          console.warn(`Catalog search failed for "${artist}": ${response.status}`);
+          return [];
+        }
+        const json = await response.json();
+        const items = json?.results?.songs?.data || [];
+
+        const artistLower = artist.toLowerCase();
+        return items
+          .filter((item: any) => {
+            const songArtist = item.attributes?.artistName?.toLowerCase() || '';
+            return songArtist.includes(artistLower) || artistLower.includes(songArtist.split('&')[0].trim());
+          })
+          .map((item: any) => {
+            const attr = item.attributes || {};
+            return {
+              id: item.id,
+              uri: item.id,
+              name: attr.name || 'Unknown',
+              artist: attr.artistName || 'Unknown Artist',
+              artistName: attr.artistName || 'Unknown Artist',
+              album: attr.albumName || '',
+              albumName: attr.albumName || '',
+              duration_ms: attr.durationInMillis || 0,
+              explicit: attr.contentRating === 'explicit',
+              imageUrl: attr.artwork
+                ? attr.artwork.url.replace('{w}', '300').replace('{h}', '300')
+                : undefined,
+            };
+          });
+      } catch (err) {
+        console.warn(`Error searching catalog for artist "${artist}":`, err);
+        return [];
+      }
+    }));
+    allResults.push(...batchResults);
+    if (i + BATCH_SIZE < artistNames.length) {
+      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
     }
-  }));
+  }
+
+  const results = allResults;
 
   const combined = results.flat();
   const seen = new Set<string>();
