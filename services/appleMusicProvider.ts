@@ -191,15 +191,21 @@ export class AppleMusicProvider implements IMusicProvider {
     const music = mk();
     if (!music) return;
 
-    // Use playParams descriptors — this is what MusicKit actually needs to queue tracks.
-    // Format: { id, kind, isLibrary } from the playParams Apple returns on each song.
     const descriptors = uris.map(id => ({
       id,
       kind: 'song',
       isLibrary: true,
     }));
 
-    await music.setQueue({ items: descriptors, startPosition: index });
+    // setQueue always starts at position 0 internally.
+    // To start at a specific index, we set the queue then skip to the right position.
+    await music.setQueue({ items: descriptors });
+
+    if (index > 0) {
+      // skipToItem by index is more reliable than startPosition
+      await music.changeToMediaAtIndex(index);
+    }
+
     await music.play();
   }
 
