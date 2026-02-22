@@ -312,72 +312,44 @@ export class AppleMusicProvider implements IMusicProvider {
       case 'a7x_deep': {
         const storefront = music.storefrontId || 'us';
 
-        // A7X gets multiple searches to surface deep cuts alongside hits.
-        // Apple Music search API caps at 25 per call, so we search twice
-        // with different terms to get a wider range of their catalog.
-        const [a7xMain, a7xDeep] = await Promise.all([
-          fetchTracksByArtistsCatalog(music, ['Avenged Sevenfold'], storefront, 25),
-          fetchTracksByArtistsCatalog(music, ['Avenged Sevenfold album'], storefront, 25),
-        ]);
-        // Merge and deduplicate
-        const a7xSeen = new Set<string>();
-        const a7xTracks = [...a7xMain, ...a7xDeep].filter(t => {
-          if (a7xSeen.has(t.id)) return false;
-          a7xSeen.add(t.id);
-          return true;
-        });
+        // Fetch all artists in one batched call — A7X first so it gets priority
+        const allArtists = [
+          'Avenged Sevenfold',
+          'Trivium', 'Shinedown', 'Seether', 'Rage Against the Machine',
+          'Spiritbox', 'Atreyu', 'Linkin Park', 'Limp Bizkit', 'Deftones',
+          'Incubus', 'Staind', 'Sevendust', 'Red Hot Chili Peppers', 'Rob Zombie',
+          'Stone Temple Pilots', 'Bad Wolves', 'System of a Down', 'Breaking Benjamin',
+          'Korn', 'Five Finger Death Punch', 'Bullet for My Valentine', 'Disturbed',
+          'Slipknot', 'Volbeat', 'Godsmack', 'Three Days Grace', 'Tool',
+          'Alice in Chains', 'Chevelle',
+        ];
 
-        // Similar artists get a standard pull (10 tracks each)
-        const similarTracks = await fetchTracksByArtistsCatalog(music, [
-          'Trivium',
-          'Shinedown',
-          'Seether',
-          'Rage Against the Machine',
-          'Spiritbox',
-          'Atreyu',
-          'Linkin Park',
-          'Limp Bizkit',
-          'Deftones',
-          'Incubus',
-          'Staind',
-          'Sevendust',
-          'Red Hot Chili Peppers',
-          'Rob Zombie',
-          'Stone Temple Pilots',
-          'Bad Wolves',
-          'System of a Down',
-          'Breaking Benjamin',
-          'Korn',
-          'Five Finger Death Punch',
-          'Bullet for My Valentine',
-          'Disturbed',
-          'Slipknot',
-          'Volbeat',
-          'Godsmack',
-          'Three Days Grace',
-          'Tool',
-          'Alice in Chains',
-          'Chevelle',
-        ], storefront, 10);
+        const allTracks = await fetchTracksByArtistsCatalog(music, allArtists, storefront, 12);
 
-        // Guaranteed blend: ~40% A7X, ~60% similar artists
-        const shuffledA7X = a7xTracks.sort(() => Math.random() - 0.5).slice(0, 14);
-        const shuffledSimilar = similarTracks.sort(() => Math.random() - 0.5).slice(0, 21);
+        // Split into A7X and others
+        const a7xPool = allTracks.filter(t =>
+          t.artistName?.toLowerCase().includes('avenged sevenfold') ||
+          (t.artist as string)?.toLowerCase().includes('avenged sevenfold')
+        );
+        const otherPool = allTracks.filter(t =>
+          !t.artistName?.toLowerCase().includes('avenged sevenfold') &&
+          !(t.artist as string)?.toLowerCase().includes('avenged sevenfold')
+        );
 
-        // Simple interleave: 2 similar, 1 A7X, repeat
-        const blended: any[] = [];
-        let ai = 0, si = 0;
-        while (ai < shuffledA7X.length || si < shuffledSimilar.length) {
-          if (si < shuffledSimilar.length) blended.push(shuffledSimilar[si++]);
-          if (si < shuffledSimilar.length) blended.push(shuffledSimilar[si++]);
-          if (ai < shuffledA7X.length) blended.push(shuffledA7X[ai++]);
-        }
+        // Shuffle both pools
+        a7xPool.sort(() => Math.random() - 0.5);
+        otherPool.sort(() => Math.random() - 0.5);
 
-        tracks = blended;
+        // Build final list: guaranteed at least 10 A7X if available, rest others
+        const a7xCount = Math.min(a7xPool.length, 12);
+        const otherCount = Math.min(otherPool.length, 23);
+        tracks = [...a7xPool.slice(0, a7xCount), ...otherPool.slice(0, otherCount)];
+        // Final shuffle so A7X isn't all at the start
+        tracks.sort(() => Math.random() - 0.5);
         break;
       }
 
-      default:
+            default:
         console.warn(`[AppleMusicProvider] Unknown sourceId: ${sourceId}`);
         tracks = [];
     }
