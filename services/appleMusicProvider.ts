@@ -124,10 +124,13 @@ async function fetchTracksByArtistsCatalog(music: any, artistNames: string[], st
       const items = response?.data?.results?.songs?.data || [];
 
       // Filter to only songs actually by this artist (search can return loose matches)
+      // Check both ways: artist name contains search term OR search term contains artist name
+      const artistLower = artist.toLowerCase();
       return items
-        .filter((item: any) =>
-          item.attributes?.artistName?.toLowerCase().includes(artist.toLowerCase())
-        )
+        .filter((item: any) => {
+          const songArtist = item.attributes?.artistName?.toLowerCase() || '';
+          return songArtist.includes(artistLower) || artistLower.includes(songArtist.split('&')[0].trim());
+        })
         .map((item: any) => {
           const attr = item.attributes || {};
           return {
