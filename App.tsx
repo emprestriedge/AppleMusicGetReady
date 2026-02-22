@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ErrorInfo, ReactNode } from 'react';
-import { TabType, RuleSettings, RunOption, RunRecord, SpotifyUser, RunResult, AppConfig } from './types';
+import { TabType, RuleSettings, RunOption, RunRecord, RunResult, AppConfig } from './types';
 import HomeView from './components/HomeView';
 import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
@@ -7,7 +7,7 @@ import RunView from './components/RunView';
 import LoginView from './components/LoginView';
 import NowPlayingStrip from './components/NowPlayingStrip';
 import InkBackground from './components/InkBackground';
-import { SpotifyAuth } from './services/spotifyAuth';
+import { appleMusicService } from './services/appleMusicService';
 import { musicProvider } from './services/musicProvider';
 import { Haptics } from './services/haptics';
 import { apiLogger } from './services/apiLogger';
@@ -24,10 +24,6 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-/**
- * Fixed ErrorBoundary to correctly extend the React.Component class.
- * Explicitly using React.Component ensures the compiler recognizes 'this.props'.
- */
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
@@ -55,8 +51,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    
-    // Using this.props correctly inherited from React.Component
     return this.props.children || null;
   }
 }
@@ -82,9 +76,9 @@ const DemoModeIndicator: React.FC = () => {
   if (!USE_MOCK_DATA && !IS_STUDIO_MODE) return null;
   return (
     <div className="fixed bottom-24 right-4 z-[400] pointer-events-none">
-       <span className="bg-palette-gold/20 backdrop-blur-md border border-palette-gold/30 text-palette-gold text-[8px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded-full opacity-60">
-         {IS_STUDIO_MODE ? 'STUDIO PREVIEW' : 'DEMO MODE'}
-       </span>
+      <span className="bg-palette-gold/20 backdrop-blur-md border border-palette-gold/30 text-palette-gold text-[8px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded-full opacity-60">
+        {IS_STUDIO_MODE ? 'STUDIO PREVIEW' : 'DEMO MODE'}
+      </span>
     </div>
   );
 };
@@ -95,21 +89,19 @@ const App: React.FC = () => {
   const [settingsKey, setSettingsKey] = useState(0);
   const [rules, setRules] = useState<RuleSettings>(configStore.getConfig().rules);
   const [config, setConfig] = useState<AppConfig>(configStore.getConfig());
-  const [spotifyUser, setSpotifyUser] = useState<SpotifyUser | null>(null);
   const [history, setHistory] = useState<RunRecord[]>([]);
   const [activeRunOption, setActiveRunOption] = useState<RunOption | null>(null);
   const [activeRunResult, setActiveRunResult] = useState<RunResult | null>(null);
   const [showRunOverlay, setShowRunOverlay] = useState(false);
   const [authStatus, setAuthStatus] = useState<string>('idle');
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [isPlayerVisible, setIsPlayerVisible] = useState(true);
   const [isRunViewQueueMode, setIsRunViewQueueMode] = useState(false);
   const [initFinished, setInitFinished] = useState(false);
 
   const triggerHaptic = () => {
     const trigger = document.getElementById('haptic-trigger') as HTMLInputElement;
-    if (trigger) {
-      trigger.click();
-    }
+    if (trigger) trigger.click();
   };
 
   useEffect(() => {
@@ -117,7 +109,7 @@ const App: React.FC = () => {
       setConfig(configStore.getConfig());
       setRules(configStore.getConfig().rules);
     });
-    
+
     const loadHistory = () => {
       const saved = localStorage.getItem('spotify_buddy_history');
       if (saved) {
@@ -126,60 +118,67 @@ const App: React.FC = () => {
         setHistory(MOCK_HISTORY);
       }
     };
-    
-    const initSpotify = async () => {
+
+    const initApp = async () => {
+      // Demo / studio mode — skip real auth
       if (USE_MOCK_DATA || IS_STUDIO_MODE) {
-        // Refactored to use musicProvider
-        const demoUser = await musicProvider.getAccountDetails();
-        setSpotifyUser(demoUser);
-        setAuthStatus('connected');
+        setIsAuthorized(true);
+        setAuthStatus('authorized');
         loadHistory();
         setInitFinished(true);
         return;
       }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      const state = urlParams.get('state');
+      // Configure MusicKit (fetches developer token from our Netlify function)
+      await appleMusicService.configure();
 
-      if (code) {
-        setAuthStatus('exchanging');
-        try {
-          // Keep callback plumbing in place
-          await SpotifyAuth.exchangeCodeForToken(code, state);
-          window.history.replaceState({}, document.title, "/");
-        } catch (e) {
-          setAuthStatus('error');
+      // Check if user is already authorized
+      try {
+        const music = (window as any).MusicKit?.getInstance();
+        if (music && music.isAuthorized) {
+          setIsAuthorized(true);
+          setAuthStatus('authorized');
+        } else {
+          setAuthStatus('idle');
         }
+      } catch (e) {
+        setAuthStatus('idle');
       }
 
-      // Keep token plumbing in place
-      const token = await SpotifyAuth.getValidAccessToken();
-      if (token) {
-        try {
-          // Refactored to use musicProvider
-          const user = await musicProvider.getAccountDetails();
-          setSpotifyUser(user);
-          setAuthStatus('connected');
-        } catch (e) {
-          setAuthStatus('error');
-        }
-      }
-      
       loadHistory();
       setInitFinished(true);
     };
 
-    initSpotify();
+    initApp();
     return unsub;
   }, []);
+
+  // Listen for MusicKit authorization changes
+  useEffect(() => {
+    const handleAuthChange = () => {
+      try {
+        const music = (window as any).MusicKit?.getInstance();
+        if (music && music.isAuthorized) {
+          setIsAuthorized(true);
+          setAuthStatus('authorized');
+        } else {
+          setIsAuthorized(false);
+          setAuthStatus('idle');
+        }
+      } catch (e) {}
+    };
+
+    const music = (window as any).MusicKit?.getInstance();
+    if (music) {
+      music.addEventListener('authorizationStatusDidChange', handleAuthChange);
+      return () => music.removeEventListener('authorizationStatusDidChange', handleAuthChange);
+    }
+  }, [initFinished]);
 
   const handleTabClick = (tab: TabType) => {
     triggerHaptic();
     Haptics.light();
-    
     setShowRunOverlay(false);
-    
     if (tab !== activeTab) {
       setActiveTab(tab);
     } else {
@@ -190,9 +189,9 @@ const App: React.FC = () => {
 
   const handleStartRun = (option: RunOption) => {
     triggerHaptic();
-    setIsRunViewQueueMode(false); 
+    setIsRunViewQueueMode(false);
     setActiveRunOption(option);
-    setActiveRunResult(null); 
+    setActiveRunResult(null);
     setShowRunOverlay(true);
   };
 
@@ -208,7 +207,6 @@ const App: React.FC = () => {
     const updatedHistory = [newRecord, ...history];
     setHistory(updatedHistory);
     localStorage.setItem('spotify_buddy_history', JSON.stringify(updatedHistory));
-    
     setActiveRunResult(result);
   };
 
@@ -216,16 +214,23 @@ const App: React.FC = () => {
     if (activeRunOption) {
       triggerHaptic();
       Haptics.medium();
-      setIsRunViewQueueMode(true); 
+      setIsRunViewQueueMode(true);
       setShowRunOverlay(true);
     }
   };
 
   const isCurrentlyInPreview = showRunOverlay && !isRunViewQueueMode;
 
-  // Gate the app behind LoginView if no user is authenticated and not in Studio Mode
-  if (initFinished && !spotifyUser && !IS_STUDIO_MODE) {
-    return <LoginView onLoginSuccess={() => window.location.reload()} />;
+  // Show login screen if not authorized and not in studio/demo mode
+  if (initFinished && !isAuthorized && !IS_STUDIO_MODE) {
+    return (
+      <LoginView
+        onLoginSuccess={() => {
+          setIsAuthorized(true);
+          setAuthStatus('authorized');
+        }}
+      />
+    );
   }
 
   return (
@@ -235,19 +240,17 @@ const App: React.FC = () => {
           {/* Layer 0: Main Content */}
           <div id="main-content-scroller" className="flex-1 overflow-y-auto ios-scroller w-full relative pb-[calc(100px+env(safe-area-inset-bottom))]">
             {activeTab === 'Home' && (
-              <HomeView 
+              <HomeView
                 key={homeKey}
-                onSelect={handleStartRun} 
-                rules={rules} 
-                setRules={setRules} 
+                onSelect={handleStartRun}
+                rules={rules}
+                setRules={setRules}
               />
             )}
             {activeTab === 'Vault' && (
-              <HistoryView 
-                history={history} 
-                onPreviewStarted={() => {
-                  setIsRunViewQueueMode(false);
-                }}
+              <HistoryView
+                history={history}
+                onPreviewStarted={() => setIsRunViewQueueMode(false)}
                 onPlayTriggered={() => {
                   setIsPlayerVisible(true);
                   setIsRunViewQueueMode(true);
@@ -255,14 +258,12 @@ const App: React.FC = () => {
               />
             )}
             {activeTab === 'Settings' && (
-              <SettingsView 
+              <SettingsView
                 key={settingsKey}
-                config={config} 
-                rules={rules} 
-                setRules={setRules} 
-                spotifyUser={spotifyUser}
+                config={config}
+                rules={rules}
+                setRules={setRules}
                 authStatus={authStatus}
-                authError={null}
                 setAuthStatus={setAuthStatus}
               />
             )}
@@ -270,24 +271,20 @@ const App: React.FC = () => {
 
           {/* Layer 1: RunView Overlay */}
           {activeRunOption && showRunOverlay && (
-            <RunView 
-              option={activeRunOption} 
-              rules={rules} 
-              onClose={() => setShowRunOverlay(false)} 
+            <RunView
+              option={activeRunOption}
+              rules={rules}
+              onClose={() => setShowRunOverlay(false)}
               onComplete={handleRunComplete}
               initialResult={activeRunResult || undefined}
               onResultUpdate={setActiveRunResult}
               onPlayTriggered={() => {
-                 setIsPlayerVisible(true);
-                 setIsRunViewQueueMode(true); 
+                setIsPlayerVisible(true);
+                setIsRunViewQueueMode(true);
               }}
-              onPreviewStarted={() => {
-                setIsRunViewQueueMode(false);
-              }}
+              onPreviewStarted={() => setIsRunViewQueueMode(false)}
               isQueueMode={isRunViewQueueMode}
-              onRegenerate={() => {
-                setActiveRunResult(null);
-              }}
+              onRegenerate={() => setActiveRunResult(null)}
             />
           )}
 
@@ -296,15 +293,15 @@ const App: React.FC = () => {
             {(['Home', 'Vault', 'Settings'] as TabType[]).map((tab) => {
               const isActive = activeTab === tab;
               return (
-                <button 
-                  key={tab} 
+                <button
+                  key={tab}
                   onClick={() => handleTabClick(tab)}
                   className={`flex flex-col items-center gap-1 transition-all duration-300 ${isActive ? 'scale-110' : 'opacity-40'}`}
                 >
                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isActive ? 'bg-palette-pink text-white shadow-xl shadow-palette-pink/30' : 'text-zinc-500'}`}>
                     {tab === 'Home' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>}
                     {tab === 'Vault' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 12l10 10 10-10L12 2z"/></svg>}
-                    {tab === 'Settings' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7-1.62-.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l-.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>}
+                    {tab === 'Settings' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l-.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>}
                   </div>
                   <span className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-palette-pink' : 'text-zinc-600'}`}>
                     {tab}
@@ -316,24 +313,24 @@ const App: React.FC = () => {
 
           {/* Layer 3: Player (Floating above Navbar) */}
           {isPlayerVisible && !isCurrentlyInPreview && (
-            <NowPlayingStrip 
-              onStripClick={handleRestoreRun} 
+            <NowPlayingStrip
+              onStripClick={handleRestoreRun}
               onClose={() => {
-                  setIsPlayerVisible(false);
-                  setIsRunViewQueueMode(false);
+                setIsPlayerVisible(false);
+                setIsRunViewQueueMode(false);
               }}
             />
           )}
         </ErrorBoundary>
-        
+
         <ToastOverlay />
         <DemoModeIndicator />
 
-        <input 
-          type="checkbox" 
-          id="haptic-trigger" 
-          {...({ switch: '' } as any)} 
-          style={{ display: 'none', position: 'absolute', pointerEvents: 'none' }} 
+        <input
+          type="checkbox"
+          id="haptic-trigger"
+          {...({ switch: '' } as any)}
+          style={{ display: 'none', position: 'absolute', pointerEvents: 'none' }}
         />
       </InkBackground>
     </div>
