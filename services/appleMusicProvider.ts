@@ -115,12 +115,12 @@ async function fetchLibraryTracks(music: any): Promise<SpotifyTrack[]> {
 }
 
 // Helper to search Apple Music CATALOG by artist names (includes songs not in library)
-async function fetchTracksByArtistsCatalog(music: any, artistNames: string[], storefront: string = 'us'): Promise<SpotifyTrack[]> {
+async function fetchTracksByArtistsCatalog(music: any, artistNames: string[], storefront: string = 'us', limitPerArtist: number = 12): Promise<SpotifyTrack[]> {
   const results = await Promise.all(artistNames.map(async (artist) => {
     try {
       // Search the full Apple Music catalog
       const encodedArtist = encodeURIComponent(artist);
-      const response = await music.api.music(`/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=25`);
+      const response = await music.api.music(`/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=${limitPerArtist}`);
       const items = response?.data?.results?.songs?.data || [];
 
       // Filter to only songs actually by this artist (search can return loose matches)
@@ -281,11 +281,34 @@ export class AppleMusicProvider implements IMusicProvider {
         ]);
         break;
 
-      // ── A7X Radio — uses full Apple Music catalog for discovery ──
+      // ── A7X Radio — A7X deep catalog + similar artists ──
       case 'a7x_deep': {
         const storefront = music.storefrontId || 'us';
-        tracks = await fetchTracksByArtistsCatalog(music, [
-          'Avenged Sevenfold',
+
+        // A7X gets a much larger pull (40 tracks) to surface deep cuts
+        // alongside the popular stuff — the whole catalog, not just hits
+        const a7xTracks = await fetchTracksByArtistsCatalog(music,
+          ['Avenged Sevenfold'], storefront, 40
+        );
+
+        // Similar artists get a standard pull (10 tracks each)
+        const similarTracks = await fetchTracksByArtistsCatalog(music, [
+          'Trivium',
+          'Shinedown',
+          'Seether',
+          'Rage Against the Machine',
+          'Spiritbox',
+          'Atreyu',
+          'Linkin Park',
+          'Limp Bizkit',
+          'Deftones',
+          'Incubus',
+          'Staind',
+          'Sevendust',
+          'Red Hot Chili Peppers',
+          'Rob Zombie',
+          'Stone Temple Pilots',
+          'Bad Wolves',
           'System of a Down',
           'Breaking Benjamin',
           'Korn',
@@ -293,7 +316,16 @@ export class AppleMusicProvider implements IMusicProvider {
           'Bullet for My Valentine',
           'Disturbed',
           'Slipknot',
-        ], storefront);
+          'Volbeat',
+          'Godsmack',
+          'Three Days Grace',
+          'Tool',
+          'Alice in Chains',
+          'Chevelle',
+        ], storefront, 10);
+
+        // Blend: roughly 40% A7X, 60% similar artists
+        tracks = [...a7xTracks, ...similarTracks];
         break;
       }
 
