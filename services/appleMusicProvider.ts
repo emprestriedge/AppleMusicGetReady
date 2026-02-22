@@ -312,11 +312,20 @@ export class AppleMusicProvider implements IMusicProvider {
       case 'a7x_deep': {
         const storefront = music.storefrontId || 'us';
 
-        // A7X gets a much larger pull (40 tracks) to surface deep cuts
-        // alongside the popular stuff — the whole catalog, not just hits
-        const a7xTracks = await fetchTracksByArtistsCatalog(music,
-          ['Avenged Sevenfold'], storefront, 40
-        );
+        // A7X gets multiple searches to surface deep cuts alongside hits.
+        // Apple Music search API caps at 25 per call, so we search twice
+        // with different terms to get a wider range of their catalog.
+        const [a7xMain, a7xDeep] = await Promise.all([
+          fetchTracksByArtistsCatalog(music, ['Avenged Sevenfold'], storefront, 25),
+          fetchTracksByArtistsCatalog(music, ['Avenged Sevenfold album'], storefront, 25),
+        ]);
+        // Merge and deduplicate
+        const a7xSeen = new Set<string>();
+        const a7xTracks = [...a7xMain, ...a7xDeep].filter(t => {
+          if (a7xSeen.has(t.id)) return false;
+          a7xSeen.add(t.id);
+          return true;
+        });
 
         // Similar artists get a standard pull (10 tracks each)
         const similarTracks = await fetchTracksByArtistsCatalog(music, [
