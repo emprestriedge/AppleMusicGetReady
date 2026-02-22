@@ -258,6 +258,7 @@ const RunView: React.FC<RunViewProps> = ({
       }
       const uris = result.tracks.map(t => t.uri);
       await musicProvider.play(uris, 0);
+      setCurrentPlayingUri(result.tracks[0].uri); // highlight first track immediately
       setViewMode('QUEUE');
       onPlayTriggered?.();
       toastService.show('Mix loaded into Apple Music', 'success');
