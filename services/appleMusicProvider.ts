@@ -360,8 +360,26 @@ export class AppleMusicProvider implements IMusicProvider {
           'Chevelle',
         ], storefront, 10);
 
-        // Blend: roughly 40% A7X, 60% similar artists
-        tracks = [...a7xTracks, ...similarTracks];
+        // Guaranteed blend: ~40% A7X, ~60% similar artists in final playlist
+        // Shuffle each pool independently first
+        const shuffledA7X = a7xTracks.sort(() => Math.random() - 0.5);
+        const shuffledSimilar = similarTracks.sort(() => Math.random() - 0.5);
+
+        // Take 14 A7X + 21 similar = 35 track playlist
+        const a7xSlice = shuffledA7X.slice(0, 14);
+        const similarSlice = shuffledSimilar.slice(0, 21);
+
+        // Interleave them so A7X appears throughout rather than in a block
+        const blended: any[] = [];
+        const maxLen = Math.max(a7xSlice.length, similarSlice.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < similarSlice.length) blended.push(similarSlice[i]);
+          if (i < a7xSlice.length) blended.push(a7xSlice[i]);
+          if (i + 1 < similarSlice.length) blended.push(similarSlice[i + 1]);
+          i++; // skip ahead since we took 2 similar per 1 A7X
+        }
+
+        tracks = blended;
         break;
       }
 
@@ -370,7 +388,11 @@ export class AppleMusicProvider implements IMusicProvider {
         tracks = [];
     }
 
-    // Shuffle and limit
+    // For a7x_deep the blend is already handled above with guaranteed ratios.
+    // For all other sources, shuffle and limit normally.
+    if (sourceId === 'a7x_deep') {
+      return tracks;
+    }
     const shuffled = tracks.sort(() => Math.random() - 0.5);
     return shuffled.slice(0, Math.min(limit * 3, shuffled.length));
   }
