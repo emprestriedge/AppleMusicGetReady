@@ -118,13 +118,21 @@ async function fetchLibraryTracks(music: any): Promise<SpotifyTrack[]> {
 async function fetchTracksByArtistsCatalog(music: any, artistNames: string[], storefront: string = 'us', limitPerArtist: number = 12): Promise<SpotifyTrack[]> {
   const results = await Promise.all(artistNames.map(async (artist) => {
     try {
-      // Search the full Apple Music catalog
+      // Use direct fetch — music.api.music() throws 500 errors on catalog search
       const encodedArtist = encodeURIComponent(artist);
-      const response = await music.api.music(`/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=${limitPerArtist}`);
-      const items = response?.data?.results?.songs?.data || [];
+      const response = await fetch(
+        `https://api.music.apple.com/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=${limitPerArtist}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${music.developerToken}`,
+            'Music-User-Token': music.musicUserToken,
+          },
+        }
+      );
+      if (!response.ok) return [];
+      const json = await response.json();
+      const items = json?.results?.songs?.data || [];
 
-      // Filter to only songs actually by this artist (search can return loose matches)
-      // Check both ways: artist name contains search term OR search term contains artist name
       const artistLower = artist.toLowerCase();
       return items
         .filter((item: any) => {
