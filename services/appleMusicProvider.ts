@@ -8,9 +8,7 @@ const mk = () => (window as any).MusicKit?.getInstance();
 // Helper to fetch all songs from a library playlist by name
 async function fetchPlaylistTracks(music: any, playlistName: string): Promise<SpotifyTrack[]> {
   try {
-    const response = await music.api.music('/v1/me/library/playlists', {
-      query: { limit: 100 }
-    });
+    const response = await music.api.music('/v1/me/library/playlists?limit=100');
     const playlists = response?.data?.data || [];
     const match = playlists.find((p: any) =>
       p.attributes?.name?.toLowerCase() === playlistName.toLowerCase()
@@ -35,9 +33,7 @@ async function fetchTracksFromPlaylistId(music: any, playlistId: string): Promis
 
   while (true) {
     try {
-      const response = await music.api.music(url, {
-        query: { limit, offset }
-      });
+      const response = await music.api.music(`${url}?limit=${limit}&offset=${offset}`);
       const items = response?.data?.data || [];
       for (const item of items) {
         const attr = item.attributes || {};
@@ -87,9 +83,7 @@ async function fetchLibraryTracks(music: any): Promise<SpotifyTrack[]> {
 
   while (true) {
     try {
-      const response = await music.api.music('/v1/me/library/songs', {
-        query: { limit, offset }
-      });
+      const response = await music.api.music(`/v1/me/library/songs?limit=${limit}&offset=${offset}`);
       const items = response?.data?.data || [];
       for (const item of items) {
         const attr = item.attributes || {};
@@ -123,9 +117,8 @@ async function fetchTracksByArtistsCatalog(music: any, artistNames: string[], st
   const results = await Promise.all(artistNames.map(async (artist) => {
     try {
       // Search the full Apple Music catalog
-      const response = await music.api.music(`/v1/catalog/${storefront}/search`, {
-        query: { term: artist, types: 'songs', limit: 25 }
-      });
+      const encodedArtist = encodeURIComponent(artist);
+      const response = await music.api.music(`/v1/catalog/${storefront}/search?term=${encodedArtist}&types=songs&limit=25`);
       const items = response?.data?.results?.songs?.data || [];
 
       // Filter to only songs actually by this artist (search can return loose matches)
