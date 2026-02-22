@@ -47,32 +47,46 @@ const TrackRow: React.FC<{
 
   const touchStartX = useRef<number | null>(null);
   const lastTapTime = useRef<number>(0);
+  // Store which track ID got the first tap so double-tap only fires on same track
+  const lastTapTrackId = useRef<string>('');
   const timerRef = useRef<any>(null);
   const isLongPress = useRef(false);
+  const didMove = useRef(false);
 
   const SWIPE_LIMIT = -100;
-  const LONG_PRESS_DURATION = 500;
+  const LONG_PRESS_DURATION = 600;
   const MOVEMENT_THRESHOLD = 12;
+  const DOUBLE_TAP_MS = 350;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     setIsPressed(true);
     isLongPress.current = false;
+    didMove.current = false;
 
-    timerRef.current = setTimeout(() => {
-      isLongPress.current = true;
-      onStatusToggle(track);
-    }, LONG_PRESS_DURATION);
-
+    // Check for double-tap on the SAME track
     const now = Date.now();
-    if (now - lastTapTime.current < 300) {
+    const isSameTrack = lastTapTrackId.current === track.id;
+    if (isSameTrack && now - lastTapTime.current < DOUBLE_TAP_MS) {
+      // Double tap confirmed — play this track
       clearTimeout(timerRef.current);
+      lastTapTime.current = 0;
+      lastTapTrackId.current = '';
       onPlay(track, index);
       Haptics.impactAsync(ImpactFeedbackStyle.Heavy);
-      lastTapTime.current = 0;
       return;
     }
+
+    // First tap — record it and start long-press timer
     lastTapTime.current = now;
+    lastTapTrackId.current = track.id;
+
+    timerRef.current = setTimeout(() => {
+      if (!didMove.current) {
+        isLongPress.current = true;
+        onStatusToggle(track);
+      }
+    }, LONG_PRESS_DURATION);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -82,6 +96,7 @@ const TrackRow: React.FC<{
     if (Math.abs(deltaX) > MOVEMENT_THRESHOLD) {
       clearTimeout(timerRef.current);
       setIsPressed(false);
+      didMove.current = true;
     }
 
     if (deltaX < 0) {
@@ -94,7 +109,7 @@ const TrackRow: React.FC<{
     clearTimeout(timerRef.current);
     setIsPressed(false);
 
-    if (!isLongPress.current && Math.abs(swipeX) < 10) {
+    if (!isLongPress.current && !didMove.current && Math.abs(swipeX) < 10) {
       Haptics.impactAsync(ImpactFeedbackStyle.Light);
     }
 
@@ -178,7 +193,6 @@ const RunView: React.FC<RunViewProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>(isQueueMode ? 'QUEUE' : 'PREVIEW');
 
   const [showSaveOptions, setShowSaveOptions] = useState(false);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [namingDestination, setNamingDestination] = useState<'apple' | 'vault' | null>(null);
   const [editName, setEditName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -195,14 +209,11 @@ const RunView: React.FC<RunViewProps> = ({
     if (el) (el as HTMLInputElement).click();
   };
 
-  // ── Startup ──────────────────────────────────────────────────────────
-
   useEffect(() => {
     if (viewMode !== 'QUEUE') onPreviewStarted?.();
     if (initialResult) { setResult(initialResult); setGenStatus('DONE'); return; }
     if (genStatus === 'IDLE') startRun();
 
-    // Poll MusicKit for currently playing track
     const poll = setInterval(async () => {
       try {
         const state = await musicProvider.getPlaybackStatus();
@@ -212,8 +223,6 @@ const RunView: React.FC<RunViewProps> = ({
 
     return () => clearInterval(poll);
   }, [option, rules, initialResult]);
-
-  // ── Generation ───────────────────────────────────────────────────────
 
   const startRun = async () => {
     generationRequestId.current++;
@@ -237,8 +246,6 @@ const RunView: React.FC<RunViewProps> = ({
       }
     }
   };
-
-  // ── Playback ─────────────────────────────────────────────────────────
 
   const handlePlayAll = async () => {
     if (!result?.tracks || result.tracks.length === 0) return;
@@ -266,18 +273,17 @@ const RunView: React.FC<RunViewProps> = ({
       const uris = result.tracks.map(t => t.uri);
       await musicProvider.play(uris, index);
       setCurrentPlayingUri(track.uri);
+      setViewMode('QUEUE');
       onPlayTriggered?.();
       Haptics.light();
+      toastService.show(`Playing: ${track.title}`, 'success');
     } catch (err: any) {
       toastService.show(err.message || 'Playback failed', 'error');
     }
   };
 
-  // ── Source switching (Apple devices via AirPlay) ───────────────────
-
   const handleOpenSource = () => {
     Haptics.medium();
-    // Trigger native AirPlay picker via MusicKit
     try {
       const music = (window as any).MusicKit?.getInstance();
       if (music && music.showPlaybackTargetPicker) {
@@ -290,14 +296,13 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
-  // ── Gem / Block ───────────────────────────────────────────────────────
-
+  // ── Gem toggle — optimistic update so asterisk lights up immediately ──
   const handleToggleStatus = async (track: Track) => {
     if (!result?.tracks) return;
     const isGem = track.status === 'gem';
     const newStatus: 'gem' | 'none' = isGem ? 'none' : 'gem';
 
-    const originalTracks = [...result.tracks];
+    // Update UI immediately (optimistic)
     const updatedTracks = result.tracks.map(t =>
       t.id === track.id ? { ...t, status: newStatus } : t
     );
@@ -305,19 +310,31 @@ const RunView: React.FC<RunViewProps> = ({
     setResult(updatedResult);
     onResultUpdate?.(updatedResult);
 
+    if (newStatus === 'gem') {
+      Haptics.success();
+      toastService.show('⭐ Added to Gems', 'success');
+    } else {
+      Haptics.medium();
+      toastService.show('Removed from Gems', 'info');
+    }
+
+    // Then do the async API call in the background
     try {
-      if (newStatus === 'gem') {
-        Haptics.success();
-        if (!USE_MOCK_DATA) await appleLibrary.addTrackToGems(track.id);
-        toastService.show('Added to Gems', 'success');
-      } else {
-        Haptics.medium();
-        if (!USE_MOCK_DATA) await appleLibrary.removeTrackFromGems(track.id);
-        toastService.show('Removed from Gems', 'info');
+      if (!USE_MOCK_DATA) {
+        if (newStatus === 'gem') {
+          await appleLibrary.addTrackToGems(track.id);
+        } else {
+          await appleLibrary.removeTrackFromGems(track.id);
+        }
       }
     } catch (err: any) {
-      setResult({ ...result, tracks: originalTracks });
-      onResultUpdate?.({ ...result, tracks: originalTracks });
+      // Revert on failure
+      const revertedTracks = result.tracks.map(t =>
+        t.id === track.id ? { ...t, status: track.status } : t
+      );
+      setResult({ ...result, tracks: revertedTracks });
+      onResultUpdate?.({ ...result, tracks: revertedTracks });
+      toastService.show('Failed to save gem — try again', 'error');
       apiLogger.logError(`Gems toggle failed for ${track.id}: ${err.message}`);
     }
   };
@@ -332,8 +349,6 @@ const RunView: React.FC<RunViewProps> = ({
     onResultUpdate?.(updatedResult);
     toastService.show('Track hidden from future mixes', 'info');
   };
-
-  // ── Save ──────────────────────────────────────────────────────────────
 
   const handleSaveToVault = () => {
     setEditName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
@@ -379,15 +394,11 @@ const RunView: React.FC<RunViewProps> = ({
     startRun();
   };
 
-  // ── Duration ──────────────────────────────────────────────────────────
-
   const totalDurationStr = useMemo(() => {
     if (!result?.tracks) return null;
     const mins = Math.floor(result.tracks.reduce((acc, t) => acc + (t.durationMs || 0), 0) / 60000);
     return mins > 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} mins`;
   }, [result]);
-
-  // ── Loading / Error screens ───────────────────────────────────────────
 
   if (genStatus === 'RUNNING') {
     return (
@@ -420,12 +431,9 @@ const RunView: React.FC<RunViewProps> = ({
     );
   }
 
-  // ── Main UI ───────────────────────────────────────────────────────────
-
   return (
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col animate-in slide-in-from-bottom duration-500 pb-[85px]">
 
-      {/* Top bar */}
       <header className="px-6 pb-6 flex items-center justify-between border-b border-white/5 bg-black/30 shrink-0 pt-16">
         <button
           onClick={() => { Haptics.impactAsync(ImpactFeedbackStyle.Light); onClose(); }}
@@ -441,11 +449,9 @@ const RunView: React.FC<RunViewProps> = ({
         <div className="w-12" />
       </header>
 
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto ios-scroller p-6 flex flex-col gap-8 pb-[180px] overflow-x-hidden w-full">
         <div className="flex flex-col gap-6">
 
-          {/* Title + pill badges */}
           <header className="flex flex-col gap-4 px-4 stagger-entry stagger-1">
             <div className="w-full overflow-hidden whitespace-nowrap relative py-2">
               <h2 className="leading-none font-mango header-ombre tracking-tighter drop-shadow-2xl text-7xl animate-[marquee_15s_linear_infinite] pb-2">
@@ -467,7 +473,6 @@ const RunView: React.FC<RunViewProps> = ({
                 </div>
               </div>
 
-              {/* Play Mix / Source pill */}
               {genStatus === 'DONE' && (
                 <button
                   onClick={() => {
@@ -499,7 +504,6 @@ const RunView: React.FC<RunViewProps> = ({
             </div>
           </header>
 
-          {/* Track list — gold border, purple dividers */}
           <div className="bg-[#0a0a0a]/60 backdrop-blur-3xl rounded-[32px] overflow-hidden border border-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] stagger-entry stagger-3">
             <div className="divide-y divide-[#6D28D9]/20">
               {result?.tracks?.map((track, i) => (
@@ -519,7 +523,6 @@ const RunView: React.FC<RunViewProps> = ({
         </div>
       </div>
 
-      {/* Bottom bar — Preview mode only: REGENERATE + SAVE */}
       {viewMode === 'PREVIEW' && (
         <div
           className="fixed left-0 right-0 px-6 pt-10 pb-3 bg-gradient-to-t from-black via-black/95 to-transparent z-[100]"
@@ -551,7 +554,6 @@ const RunView: React.FC<RunViewProps> = ({
         </div>
       )}
 
-      {/* Save options sheet */}
       {showSaveOptions && (
         <div
           className="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300"
@@ -591,7 +593,6 @@ const RunView: React.FC<RunViewProps> = ({
         </div>
       )}
 
-      {/* Naming prompt */}
       {namingDestination && (
         <div className="fixed inset-0 z-[10002] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div
