@@ -188,7 +188,9 @@ export class AppleMusicProvider implements IMusicProvider {
   async play(uris: string[], index: number = 0): Promise<void> {
     const music = mk();
     if (!music) return;
-    await music.setQueue({ songs: uris, startPosition: index });
+    // Library tracks use 'library-songs' queue type, not 'songs'
+    // startPosition tells MusicKit which index to start at
+    await music.setQueue({ 'library-songs': uris, startPosition: index });
     await music.play();
   }
 
@@ -311,11 +313,15 @@ export class AppleMusicProvider implements IMusicProvider {
     if (!music) throw new Error('MusicKit not initialized');
     if (!music.isAuthorized) throw new Error('Not authorized with Apple Music');
 
+    // MusicKit JS requires fetchOptions wrapper for POST requests
     const response = await music.api.music('/v1/me/library/playlists', {
-      method: 'POST',
-      body: JSON.stringify({
-        attributes: { name, description },
-      }),
+      fetchOptions: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attributes: { name, description },
+        }),
+      },
     });
 
     const playlist = response?.data?.data?.[0];
@@ -329,10 +335,17 @@ export class AppleMusicProvider implements IMusicProvider {
 
     const chunkSize = 100;
     for (let i = 0; i < trackIds.length; i += chunkSize) {
-      const chunk = trackIds.slice(i, i + chunkSize).map(id => ({ id, type: 'songs' }));
+      // Library tracks use type 'library-songs', catalog tracks use 'songs'
+      const chunk = trackIds.slice(i, i + chunkSize).map(id => ({
+        id,
+        type: id.startsWith('i.') ? 'library-songs' : 'songs',
+      }));
       await music.api.music(`/v1/me/library/playlists/${playlistId}/tracks`, {
-        method: 'POST',
-        body: JSON.stringify({ data: chunk }),
+        fetchOptions: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: chunk }),
+        },
       });
     }
   }
