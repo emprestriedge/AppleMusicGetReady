@@ -311,41 +311,81 @@ export class AppleMusicProvider implements IMusicProvider {
       // ── A7X Radio — A7X deep catalog + similar artists ──
       case 'a7x_deep': {
         const storefront = music.storefrontId || 'us';
+        const CACHE_KEY = 'getready_a7x_pool';
+        const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-        // Fetch all artists in one batched call — A7X first so it gets priority
-        const allArtists = [
-          'Avenged Sevenfold',
-          'Trivium', 'Shinedown', 'Seether', 'Rage Against the Machine',
-          'Spiritbox', 'Atreyu', 'Linkin Park', 'Limp Bizkit', 'Deftones',
-          'Incubus', 'Staind', 'Sevendust', 'Red Hot Chili Peppers', 'Rob Zombie',
-          'Stone Temple Pilots', 'Bad Wolves', 'System of a Down', 'Breaking Benjamin',
-          'Korn', 'Five Finger Death Punch', 'Bullet for My Valentine', 'Disturbed',
-          'Slipknot', 'Volbeat', 'Godsmack', 'Three Days Grace', 'Tool',
-          'Alice in Chains', 'Chevelle',
-        ];
+        // Check cache first — avoids rate limiting on regenerate
+        let cachedPool: SpotifyTrack[] | null = null;
+        try {
+          const raw = localStorage.getItem(CACHE_KEY);
+          if (raw) {
+            const { timestamp, data } = JSON.parse(raw);
+            if (Date.now() - timestamp < CACHE_TTL) {
+              cachedPool = data;
+            }
+          }
+        } catch {}
 
-        const allTracks = await fetchTracksByArtistsCatalog(music, allArtists, storefront, 12);
+        let a7xPool: SpotifyTrack[];
+        let otherPool: SpotifyTrack[];
 
-        // Split into A7X and others
-        const a7xPool = allTracks.filter(t =>
-          t.artistName?.toLowerCase().includes('avenged sevenfold') ||
-          (t.artist as string)?.toLowerCase().includes('avenged sevenfold')
-        );
-        const otherPool = allTracks.filter(t =>
-          !t.artistName?.toLowerCase().includes('avenged sevenfold') &&
-          !(t.artist as string)?.toLowerCase().includes('avenged sevenfold')
-        );
+        if (cachedPool && cachedPool.length > 10) {
+          // Use cache — split into A7X and others for blending
+          a7xPool = cachedPool.filter((t: any) =>
+            (t.artistName || t.artist || '').toLowerCase().includes('avenged sevenfold')
+          );
+          otherPool = cachedPool.filter((t: any) =>
+            !(t.artistName || t.artist || '').toLowerCase().includes('avenged sevenfold')
+          );
+        } else {
+          // Fresh fetch — only happens once per 24 hours
+          const allArtists = [
+            'Avenged Sevenfold',
+            'Trivium', 'Shinedown', 'Seether', 'Rage Against the Machine',
+            'Spiritbox', 'Atreyu', 'Linkin Park', 'Limp Bizkit', 'Deftones',
+            'Incubus', 'Staind', 'Sevendust', 'Red Hot Chili Peppers', 'Rob Zombie',
+            'Stone Temple Pilots', 'Bad Wolves', 'System of a Down', 'Breaking Benjamin',
+            'Korn', 'Five Finger Death Punch', 'Bullet for My Valentine', 'Disturbed',
+            'Slipknot', 'Volbeat', 'Godsmack', 'Three Days Grace', 'Tool',
+            'Alice in Chains', 'Chevelle',
+          ];
 
-        // Shuffle both pools
+          const allTracks = await fetchTracksByArtistsCatalog(music, allArtists, storefront, 12);
+
+          a7xPool = allTracks.filter((t: any) =>
+            (t.artistName || t.artist || '').toLowerCase().includes('avenged sevenfold')
+          );
+          otherPool = allTracks.filter((t: any) =>
+            !(t.artistName || t.artist || '').toLowerCase().includes('avenged sevenfold')
+          );
+
+          // Save full pool to cache
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+              timestamp: Date.now(),
+              data: allTracks,
+            }));
+          } catch {}
+        }
+
+        // Shuffle both pools independently
         a7xPool.sort(() => Math.random() - 0.5);
         otherPool.sort(() => Math.random() - 0.5);
 
-        // Build final list: guaranteed at least 10 A7X if available, rest others
-        const a7xCount = Math.min(a7xPool.length, 12);
-        const otherCount = Math.min(otherPool.length, 23);
-        tracks = [...a7xPool.slice(0, a7xCount), ...otherPool.slice(0, otherCount)];
-        // Final shuffle so A7X isn't all at the start
-        tracks.sort(() => Math.random() - 0.5);
+        // Guaranteed blend: 12 A7X + 23 others, interleaved
+        const a7xSlice = a7xPool.slice(0, Math.min(12, a7xPool.length));
+        const otherSlice = otherPool.slice(0, Math.min(23, otherPool.length));
+
+        // Interleave: 2 others, 1 A7X, repeat
+        const blended: SpotifyTrack[] = [];
+        let ai = 0, si = 0;
+        while (ai < a7xSlice.length || si < otherSlice.length) {
+          if (si < otherSlice.length) blended.push(otherSlice[si++]);
+          if (si < otherSlice.length) blended.push(otherSlice[si++]);
+          if (ai < a7xSlice.length) blended.push(a7xSlice[ai++]);
+        }
+
+        tracks = blended;
         break;
       }
 
