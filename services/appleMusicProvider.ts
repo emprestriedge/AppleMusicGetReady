@@ -50,6 +50,7 @@ async function fetchTracksFromPlaylistId(music: any, playlistId: string): Promis
           imageUrl: attr.artwork
             ? attr.artwork.url.replace('{w}', '300').replace('{h}', '300')
             : undefined,
+          playParams: attr.playParams || null,
         });
       }
       if (items.length < limit) break;
@@ -100,6 +101,7 @@ async function fetchLibraryTracks(music: any): Promise<SpotifyTrack[]> {
           imageUrl: attr.artwork
             ? attr.artwork.url.replace('{w}', '300').replace('{h}', '300')
             : undefined,
+          playParams: attr.playParams || null,
         });
       }
       if (items.length < limit) break;
@@ -189,16 +191,15 @@ export class AppleMusicProvider implements IMusicProvider {
     const music = mk();
     if (!music) return;
 
-    // Build proper MusicKit MediaItem descriptors
-    const mediaItems = uris.map(id =>
-      new (window as any).MusicKit.MediaItem({
-        id,
-        type: 'library-songs',
-        attributes: {},
-      })
-    );
+    // Use playParams descriptors — this is what MusicKit actually needs to queue tracks.
+    // Format: { id, kind, isLibrary } from the playParams Apple returns on each song.
+    const descriptors = uris.map(id => ({
+      id,
+      kind: 'song',
+      isLibrary: true,
+    }));
 
-    await music.setQueue({ items: mediaItems, startPosition: index });
+    await music.setQueue({ items: descriptors, startPosition: index });
     await music.play();
   }
 
