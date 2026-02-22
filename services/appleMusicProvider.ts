@@ -243,21 +243,17 @@ export class AppleMusicProvider implements IMusicProvider {
     switch (sourceId) {
 
       // ── Liked Songs → full Apple Music library ──
-      case 'liked':
       case 'liked_songs':
         tracks = await fetchLibraryTracks(music);
         break;
 
       // ── Shazam History ──
-      case 'shazam':
-      case 'shazam_history':
+      case 'shazam_tracks':
         tracks = await fetchPlaylistTracks(music, 'My Shazam Tracks');
         break;
 
       // ── 90s Alt Rock ──
-      case '90s_alt':
-      case '90s_acoustic':
-      case 'acoustic':
+      case 'acoustic_rock':
         tracks = await fetchFromMultiplePlaylists(music, [
           '90s Acoustic Alternative Rock',
           '90s AlterAcoustic',
@@ -265,9 +261,7 @@ export class AppleMusicProvider implements IMusicProvider {
         break;
 
       // ── OG Rap & Hip-Hop ──
-      case 'rap':
-      case 'hiphop':
-      case 'og_rap':
+      case 'rap_hiphop':
         tracks = await fetchFromMultiplePlaylists(music, [
           'Best Rap & Hip-Hop 90s/00s',
           'I Love My 90s Hip-Hop',
@@ -278,9 +272,7 @@ export class AppleMusicProvider implements IMusicProvider {
         break;
 
       // ── A7X Radio — uses full Apple Music catalog for discovery ──
-      case 'a7x':
-      case 'a7x_radio':
-      case 'metal':
+      case 'a7x_deep': {
         const storefront = music.storefrontId || 'us';
         tracks = await fetchTracksByArtistsCatalog(music, [
           'Avenged Sevenfold',
@@ -293,6 +285,7 @@ export class AppleMusicProvider implements IMusicProvider {
           'Slipknot',
         ], storefront);
         break;
+      }
 
       default:
         console.warn(`[AppleMusicProvider] Unknown sourceId: ${sourceId}`);
