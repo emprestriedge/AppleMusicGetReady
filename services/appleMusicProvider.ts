@@ -218,10 +218,11 @@ export class AppleMusicProvider implements IMusicProvider {
     const music = mk();
     if (!music) return;
 
+    // Library IDs start with 'i.' — catalog IDs are plain numbers
     const descriptors = uris.map(id => ({
       id,
       kind: 'song',
-      isLibrary: true,
+      isLibrary: id.startsWith('i.'),
     }));
 
     // setQueue always starts at position 0 internally.
