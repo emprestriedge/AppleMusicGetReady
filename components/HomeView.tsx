@@ -23,20 +23,9 @@ interface HomeViewProps {
 
 type HomeViewMode = 'root' | 'music' | 'podcast';
 
-// ── Animated mood label that updates as the slider moves ──
 const AnimatedMoodLabel: React.FC<{ value: number }> = ({ value }) => {
-  const label = value < MOOD_ZONES.ZEN_MAX
-    ? 'Zen'
-    : value < MOOD_ZONES.FOCUS_MAX
-    ? 'Focus'
-    : 'Chaos';
-
-  const color = value < MOOD_ZONES.ZEN_MAX
-    ? 'text-[#C5A04D]'
-    : value < MOOD_ZONES.FOCUS_MAX
-    ? 'text-[#2DB9B1]'
-    : 'text-[#FF007A]';
-
+  const label = value < MOOD_ZONES.ZEN_MAX ? 'Zen' : value < MOOD_ZONES.FOCUS_MAX ? 'Focus' : 'Chaos';
+  const color = value < MOOD_ZONES.ZEN_MAX ? 'text-[#C5A04D]' : value < MOOD_ZONES.FOCUS_MAX ? 'text-[#2DB9B1]' : 'text-[#FF007A]';
   return (
     <span className={`text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${color}`}>
       {label} · {Math.round(value * 100)}%
@@ -44,49 +33,19 @@ const AnimatedMoodLabel: React.FC<{ value: number }> = ({ value }) => {
   );
 };
 
-// ── Discovery label ──
 const DiscoveryLabel: React.FC<{ value: number }> = ({ value }) => {
-  const label = value <= DISCOVERY_ZONES.ZERO_CUTOFF
-    ? 'Pure Favorites'
-    : value <= DISCOVERY_ZONES.FAMILIAR_MAX
-    ? `${Math.round(value * 100)}% Familiar`
-    : `${Math.round(value * 100)}% Exploring`;
-
-  return (
-    <span className="text-[10px] font-black text-palette-pink uppercase tracking-widest">
-      {label}
-    </span>
-  );
+  const label = value <= DISCOVERY_ZONES.ZERO_CUTOFF ? 'Pure Favorites' : value <= DISCOVERY_ZONES.FAMILIAR_MAX ? `${Math.round(value * 100)}% Familiar` : `${Math.round(value * 100)}% Exploring`;
+  return <span className="text-[10px] font-black text-palette-pink uppercase tracking-widest">{label}</span>;
 };
 
 const VIBE_STYLES: Record<VibeType, { gradient: string; shadow: string; activeRing: string; label: string }> = {
-  Chaos: {
-    gradient: 'from-[#FF007A] to-[#FF4D9F]',
-    shadow: 'rgba(255, 0, 122, 0.6)',
-    activeRing: 'ring-[#FF007A]',
-    label: 'CHAOS',
-  },
-  Zen: {
-    gradient: 'from-[#C5A04D] to-[#E5C16D]',
-    shadow: 'rgba(197, 160, 77, 0.6)',
-    activeRing: 'ring-[#C5A04D]',
-    label: 'ZEN',
-  },
-  Focus: {
-    gradient: 'from-[#2DB9B1] to-[#40D9D0]',
-    shadow: 'rgba(45, 185, 177, 0.6)',
-    activeRing: 'ring-[#2DB9B1]',
-    label: 'FOCUS',
-  },
-  LighteningMix: {
-    gradient: 'from-[#6D28D9] to-[#8B5CF6]',
-    shadow: 'rgba(109, 40, 217, 0.6)',
-    activeRing: 'ring-[#6D28D9]',
-    label: 'LIGHTNING',
-  },
+  Chaos: { gradient: 'from-[#FF007A] to-[#FF4D9F]', shadow: 'rgba(255, 0, 122, 0.6)', activeRing: 'ring-[#FF007A]', label: 'CHAOS' },
+  Zen: { gradient: 'from-[#C5A04D] to-[#E5C16D]', shadow: 'rgba(197, 160, 77, 0.6)', activeRing: 'ring-[#C5A04D]', label: 'ZEN' },
+  Focus: { gradient: 'from-[#2DB9B1] to-[#40D9D0]', shadow: 'rgba(45, 185, 177, 0.6)', activeRing: 'ring-[#2DB9B1]', label: 'FOCUS' },
+  LighteningMix: { gradient: 'from-[#6D28D9] to-[#8B5CF6]', shadow: 'rgba(109, 40, 217, 0.6)', activeRing: 'ring-[#6D28D9]', label: 'LIGHTNING' },
 };
 
-// ── Category card component ──
+// CategoryCard — title and description use Bangla MN
 const CategoryCard: React.FC<{
   title: string;
   description: string;
@@ -105,8 +64,8 @@ const CategoryCard: React.FC<{
       {icon}
     </div>
     <div className="relative z-10 text-left">
-      <div className="text-white font-black text-lg leading-none">{title}</div>
-      <div className="text-white/70 text-xs mt-1 font-medium">{description}</div>
+      <div className="text-white font-black text-lg leading-none" style={{ fontFamily: '"Bangla MN", "Outfit", sans-serif' }}>{title}</div>
+      <div className="text-white/70 text-xs mt-1 font-medium" style={{ fontFamily: '"Bangla MN", "Outfit", sans-serif' }}>{description}</div>
     </div>
     <div className="relative z-10 ml-auto">
       <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +75,7 @@ const CategoryCard: React.FC<{
   </button>
 );
 
-// ── Source button component ──
+// SourceButton — name and description use Bangla MN
 const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => void }> = ({ option, onSelect }) => (
   <button
     onClick={() => { Haptics.impact(); onSelect(option); }}
@@ -128,8 +87,8 @@ const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => vo
       </svg>
     </div>
     <div className="flex-1 min-w-0">
-      <div className="text-white font-black text-sm truncate">{option.name}</div>
-      <div className="text-zinc-500 text-[11px] mt-0.5 truncate">{option.description}</div>
+      <div className="text-white font-black text-sm truncate" style={{ fontFamily: '"Bangla MN", "Outfit", sans-serif' }}>{option.name}</div>
+      <div className="text-zinc-500 text-[11px] mt-0.5 truncate" style={{ fontFamily: '"Bangla MN", "Outfit", sans-serif' }}>{option.description}</div>
     </div>
     <svg className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
@@ -140,7 +99,6 @@ const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => vo
 const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
   const [viewMode, setViewMode] = useState<HomeViewMode>('root');
 
-  // Derive initial vibe from current moodLevel
   const [vibe, setVibe] = useState<VibeType>(() => {
     if (rules.moodLevel <= MOOD_ZONES.ZEN_MAX) return 'Zen';
     if (rules.moodLevel >= 0.9) return 'LighteningMix';
@@ -168,24 +126,17 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
     }
   }, [smartPlan]);
 
-  /**
-   * setVibeProfile — when user taps a vibe button, snap the mood slider
-   * to a sensible default position for that vibe and update discovery too.
-   */
   const setVibeProfile = (v: VibeType) => {
     Haptics.impact();
     setVibe(v);
-
     let mood = 0.5;
     let discovery = 0.25;
-
     switch (v) {
-      case 'Zen':          mood = 0.1;  discovery = 0.15; break;
-      case 'Focus':        mood = 0.4;  discovery = 0.25; break;
-      case 'Chaos':        mood = 0.8;  discovery = 0.6;  break;
+      case 'Zen':           mood = 0.1;  discovery = 0.15; break;
+      case 'Focus':         mood = 0.4;  discovery = 0.25; break;
+      case 'Chaos':         mood = 0.8;  discovery = 0.6;  break;
       case 'LighteningMix': mood = Math.random(); discovery = Math.random() * 0.7; break;
     }
-
     setRules(prev => ({ ...prev, moodLevel: mood, discoverLevel: discovery }));
   };
 
@@ -193,21 +144,11 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
     Haptics.medium();
     setLoading(true);
     try {
-      const plan = await getSmartMixPlan(
-        vibe,
-        rules.discoverLevel,
-        rules.moodLevel,
-        rules.playlistLength
-      );
+      const plan = await getSmartMixPlan(vibe, rules.discoverLevel, rules.moodLevel, rules.playlistLength);
       setSmartPlan(plan);
-
       const vibeToOptionId: Record<VibeType, string> = {
-        Chaos: 'chaos_mix',
-        Zen: 'zen_mix',
-        Focus: 'focus_mix',
-        LighteningMix: 'lightning_mix',
+        Chaos: 'chaos_mix', Zen: 'zen_mix', Focus: 'focus_mix', LighteningMix: 'lightning_mix',
       };
-
       const option = SMART_MIX_MODES.find(o => o.id === vibeToOptionId[vibe]);
       if (option) {
         Haptics.success();
@@ -232,7 +173,6 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
     </svg>
   );
 
-  // ── Root view ──
   const renderRoot = () => (
     <div className="flex flex-col gap-4 px-4 pt-24 pb-40 w-full max-w-[100vw] overflow-x-hidden">
       <header className="mb-6 pl-8 stagger-entry stagger-1">
@@ -259,7 +199,7 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
         />
       </div>
 
-      {/* ── Smart Mix Card ── */}
+      {/* Smart Mix Card */}
       <div className="glass-panel-gold rounded-[40px] p-4 sm:p-6 border-white/10 relative overflow-hidden group stagger-entry stagger-3 w-full">
         <div className="absolute top-0 right-0 p-4 opacity-10">
           <svg className="w-12 h-12 text-palette-pink" fill="currentColor" viewBox="0 0 24 24">
@@ -270,8 +210,6 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
         <h2 className="text-[11px] font-black text-palette-pink uppercase tracking-[0.3em] mb-6">SMART MIX</h2>
 
         <div className="flex flex-col gap-8">
-
-          {/* Step 1 — Vibe preset buttons */}
           <div className="flex flex-col gap-3">
             <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">1. Select Vibe</span>
             <div className="grid grid-cols-4 gap-3 px-5">
@@ -285,10 +223,7 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
                       className={`relative w-full aspect-square rounded-[20px] transition-all duration-300 active:scale-95 flex items-center justify-center ${isActive ? 'scale-110' : 'opacity-40 grayscale-[0.6] scale-100'}`}
                     >
                       {isActive && (
-                        <div
-                          className="absolute inset-[-4px] rounded-[24px] blur-xl opacity-80 transition-all duration-300"
-                          style={{ backgroundColor: style.shadow.replace('0.6', '0.4') }}
-                        />
+                        <div className="absolute inset-[-4px] rounded-[24px] blur-xl opacity-80 transition-all duration-300" style={{ backgroundColor: style.shadow.replace('0.6', '0.4') }} />
                       )}
                       <div
                         className={`absolute inset-0 bg-gradient-to-br ${style.gradient} rounded-[20px] transition-all duration-300 ${isActive ? `ring-[3px] ${style.activeRing} ring-offset-2 ring-offset-black` : 'border border-white/5'}`}
@@ -312,12 +247,9 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
             </div>
           </div>
 
-          {/* Step 2 — Fine tuning sliders */}
           <div className="flex flex-col gap-4">
             <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">2. Fine Tune</span>
             <div className="flex flex-col gap-5">
-
-              {/* Mood Slider */}
               <div className="bg-zinc-900/40 px-2 py-5 rounded-[28px] border border-palette-teal/20 relative overflow-hidden">
                 <div className="flex flex-col gap-2 relative z-10">
                   <div className="flex justify-between items-center px-4">
@@ -327,27 +259,17 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
                   <div className="px-2 py-8 -my-8 flex items-center relative touch-pan-y">
                     <div className="absolute left-2 right-2 h-1.5 bg-zinc-800 rounded-full pointer-events-none" />
                     <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value={rules.moodLevel}
-                      onChange={e => {
-                        Haptics.light();
-                        setRules(prev => ({ ...prev, moodLevel: parseFloat(e.target.value) }));
-                      }}
+                      type="range" min="0" max="1" step="0.01" value={rules.moodLevel}
+                      onChange={e => { Haptics.light(); setRules(prev => ({ ...prev, moodLevel: parseFloat(e.target.value) })); }}
                       className="w-full h-16 appearance-none bg-transparent cursor-pointer accent-palette-teal relative z-10 outline-none"
                     />
                   </div>
                   <div className="flex justify-between px-4 mt-1 text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
-                    <span>Zen</span>
-                    <span>Focus</span>
-                    <span>Chaos</span>
+                    <span>Zen</span><span>Focus</span><span>Chaos</span>
                   </div>
                 </div>
               </div>
 
-              {/* Discovery Slider */}
               <div className="bg-zinc-900/40 px-2 py-5 rounded-[28px] border border-palette-pink/20 relative overflow-hidden">
                 <div className="flex flex-col gap-2 relative z-10">
                   <div className="flex justify-between items-center px-4">
@@ -357,27 +279,19 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
                   <div className="px-2 py-8 -my-8 flex items-center relative touch-pan-y">
                     <div className="absolute left-2 right-2 h-1.5 bg-zinc-800 rounded-full pointer-events-none" />
                     <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={rules.discoverLevel}
+                      type="range" min="0" max="1" step="0.05" value={rules.discoverLevel}
                       onChange={e => setRules(prev => ({ ...prev, discoverLevel: parseFloat(e.target.value) }))}
                       className="w-full h-16 appearance-none bg-transparent cursor-pointer accent-palette-pink relative z-10 outline-none"
                     />
                   </div>
                   <div className="flex justify-between px-4 mt-1 text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
-                    <span>Favorites</span>
-                    <span>Familiar</span>
-                    <span>Explore</span>
+                    <span>Favorites</span><span>Familiar</span><span>Explore</span>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
 
-          {/* Smart Plan Preview */}
           {smartPlan && (
             <div className="bg-zinc-900/30 border border-white/5 rounded-[20px] px-4 py-3">
               <div className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">{smartPlan.preset}</div>
@@ -385,7 +299,6 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
             </div>
           )}
 
-          {/* Generate button */}
           <button
             onClick={handleGenerateSmartMix}
             disabled={loading}
@@ -405,20 +318,15 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
               </span>
             </div>
           </button>
-
         </div>
       </div>
     </div>
   );
 
-  // ── Music source list view ──
   const renderMusic = () => (
     <div className="flex flex-col gap-3 px-4 pt-24 pb-40">
       <header className="mb-4 pl-4">
-        <button
-          onClick={() => navigateTo('root')}
-          className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4"
-        >
+        <button onClick={() => navigateTo('root')} className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
           </svg>
@@ -433,14 +341,10 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
     </div>
   );
 
-  // ── Podcast list view ──
   const renderPodcast = () => (
     <div className="flex flex-col gap-3 px-4 pt-24 pb-40">
       <header className="mb-4 pl-4">
-        <button
-          onClick={() => navigateTo('root')}
-          className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4"
-        >
+        <button onClick={() => navigateTo('root')} className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
           </svg>
