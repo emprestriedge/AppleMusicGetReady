@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="GetReady">
-    <meta name="theme-color" content="#1a1a1a">
+    <meta name="theme-color" content="#000000">
     
     <!-- MusicKit JS -->
     <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
@@ -70,8 +70,7 @@
             overscroll-behavior: none;
             margin: 0;
             padding: 0;
-            background: radial-gradient(circle at 20% 80%, rgba(255, 0, 122, 0.3) 0%, transparent 60%),
-                        linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            background-color: #000;
         }
 
         body {
@@ -80,8 +79,6 @@
             -moz-osx-font-smoothing: grayscale;
             color: #fff;
             letter-spacing: -0.015em;
-            background: radial-gradient(circle at 20% 80%, rgba(255, 0, 122, 0.3) 0%, transparent 60%),
-                        linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
         }
 
         @keyframes marquee {
@@ -171,6 +168,12 @@
             display: inline-block;
         }
 
+        .font-bodoni-body {
+            font-family: "Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif;
+            letter-spacing: 0.01em;
+            font-weight: 400;
+        }
+
         .font-garet {
             font-family: 'Outfit', sans-serif;
             letter-spacing: -0.01em;
@@ -178,9 +181,7 @@
         }
 
         #root {
-            height: 100svh;
-            padding-bottom: env(safe-area-inset-bottom);
-            box-sizing: border-box;
+            height: 100dvh;
             width: 100vw;
             display: flex;
             flex-direction: column;
@@ -242,7 +243,6 @@
             transform: translateY(0);
         }
 
-        /* Prevent scroll text selection */
         .no-select {
             -webkit-user-select: none;
             user-select: none;
