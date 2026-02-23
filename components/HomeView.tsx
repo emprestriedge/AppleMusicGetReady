@@ -64,8 +64,8 @@ const CategoryCard: React.FC<{
       {icon}
     </div>
     <div className="relative z-10 text-left">
-      <div className="text-white font-black text-lg leading-none" style={{ fontFamily: '"Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif' }}>{title}</div>
-      <div className="text-white/70 text-xs mt-1 font-medium" style={{ fontFamily: '"Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif' }}>{description}</div>
+      <div className="text-white font-black text-lg leading-none" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{title}</div>
+      <div className="text-white/70 text-xs mt-1 font-medium" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{description}</div>
     </div>
     <div className="relative z-10 ml-auto">
       <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,8 +87,8 @@ const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => vo
       </svg>
     </div>
     <div className="flex-1 min-w-0">
-      <div className="text-white font-black text-sm truncate" style={{ fontFamily: '"Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif' }}>{option.name}</div>
-      <div className="text-zinc-500 text-[11px] mt-0.5 truncate" style={{ fontFamily: '"Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif' }}>{option.description}</div>
+      <div className="text-white font-black text-sm truncate" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{option.name}</div>
+      <div className="text-zinc-500 text-[11px] mt-0.5 truncate" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{option.description}</div>
     </div>
     <svg className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
