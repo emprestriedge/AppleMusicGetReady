@@ -35,7 +35,6 @@ const VaultRecordRow: React.FC<{
   const [isSwiping, setIsSwiping] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
-  // Increase SWIPE_LIMIT so user can physically reach DELETE_THRESHOLD
   const SWIPE_LIMIT = -160;
   const DELETE_THRESHOLD = -120;
 
@@ -63,7 +62,6 @@ const VaultRecordRow: React.FC<{
   };
 
   const deleteOpacity = Math.min(1, Math.abs(swipeX) / 80);
-
   const moodVal = (record.rulesSnapshot as any).moodLevel ?? 0.5;
   const moodLabel = moodVal < MOOD_ZONES.ZEN_MAX ? 'Zen' : moodVal < MOOD_ZONES.FOCUS_MAX ? 'Focus' : 'Chaos';
 
@@ -138,10 +136,7 @@ const VaultRecordRow: React.FC<{
                 : 'Show'}
               colorClass="text-palette-gold border-palette-gold/20 bg-palette-gold/10"
             />
-            <Badge
-              label={moodLabel}
-              colorClass="text-palette-teal border-palette-teal/20 bg-palette-teal/10"
-            />
+            <Badge label={moodLabel} colorClass="text-palette-teal border-palette-teal/20 bg-palette-teal/10" />
             <Badge
               label={record.rulesSnapshot.allowExplicit ? 'Uncensored' : 'Filtered'}
               colorClass="text-zinc-500 border-zinc-700 bg-zinc-900"
@@ -157,14 +152,12 @@ const VaultRecordRow: React.FC<{
 };
 
 const HistoryView: React.FC<HistoryViewProps> = ({ history: initialHistory, onPreviewStarted, onPlayTriggered }) => {
-  // Use local state so deletes reflect immediately without page reload
   const [history, setHistory] = useState<RunRecord[]>(initialHistory);
   const [viewingRecord, setViewingRecord] = useState<RunRecord | null>(null);
   const [applePromptRecord, setApplePromptRecord] = useState<RunRecord | null>(null);
   const [playlistName, setPlaylistName] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Keep in sync if parent updates (e.g. new saves)
   useEffect(() => { setHistory(initialHistory); }, [initialHistory]);
 
   const handleOpenDetail = (record: RunRecord) => {
@@ -175,7 +168,6 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history: initialHistory, onPr
 
   const handleDeleteRecord = (id: string) => {
     Haptics.heavy();
-    // Update local state immediately — no page reload needed
     setHistory(prev => {
       const filtered = prev.filter(r => r.id !== id);
       localStorage.setItem('spotify_buddy_history', JSON.stringify(filtered));
@@ -269,7 +261,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history: initialHistory, onPr
             </svg>
           </div>
           <div className="flex flex-col gap-2 items-center px-6">
-            <p className="text-4xl font-gurmukhi text-[#A9E8DF] drop-shadow-sm">The Vault is empty</p>
+            <p className="text-4xl text-[#A9E8DF] drop-shadow-sm" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>The Vault is empty</p>
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-700 mt-2 px-8 leading-relaxed">
               your saved generated mixes will appear here
             </p>
