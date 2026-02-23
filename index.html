@@ -174,8 +174,10 @@
             font-weight: 500;
         }
 
-        #root {
-            height: 100dvh;
+       #root {
+            height: 100svh;
+            padding-bottom: env(safe-area-inset-bottom);
+            box-sizing: border-box;
             width: 100vw;
             display: flex;
             flex-direction: column;
