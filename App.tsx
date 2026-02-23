@@ -234,7 +234,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden bg-black text-white">
+    <div className="relative w-full overflow-hidden bg-black text-white" style={{ minHeight: '100svh', paddingBottom: 'env(safe-area-inset-bottom)' }}
       <InkBackground>
         <ErrorBoundary>
           {/* Layer 0: Main Content */}
