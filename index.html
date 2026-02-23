@@ -66,11 +66,12 @@
             overflow: hidden;
             width: 100%;
             height: 100%;
-            position: fixed; /* Prevents "rubber-banding" of the whole body on iOS */
+            position: fixed;
             overscroll-behavior: none;
             margin: 0;
             padding: 0;
-            background-color: #000;
+            background: radial-gradient(circle at 20% 80%, rgba(255, 0, 122, 0.3) 0%, transparent 60%),
+                        linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
         }
 
         body {
@@ -79,6 +80,8 @@
             -moz-osx-font-smoothing: grayscale;
             color: #fff;
             letter-spacing: -0.015em;
+            background: radial-gradient(circle at 20% 80%, rgba(255, 0, 122, 0.3) 0%, transparent 60%),
+                        linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
         }
 
         @keyframes marquee {
@@ -174,7 +177,7 @@
             font-weight: 500;
         }
 
-       #root {
+        #root {
             height: 100svh;
             padding-bottom: env(safe-area-inset-bottom);
             box-sizing: border-box;
