@@ -1,5 +1,4 @@
 import React from "react";
-
 /**
  * InkBackground - Provides a full-screen background image using an embedded 
  * radial gradient and strictly fills the viewport to allow internal scrolling.
@@ -13,16 +12,14 @@ export default function InkBackground({ children }: { children?: React.ReactNode
       linear-gradient(135deg, #000000 0%, #1a1a1a 100%)
     `,
     position: "absolute",
-    // Expand bounds slightly to accommodate translation/scaling without showing edges
     inset: "-10%",
     zIndex: 0,
-    // Slow, subtle organic movement
     animation: "inkDrift 45s ease-in-out infinite"
   };
-
   return (
     <div style={{ 
-      height: "100dvh", 
+      height: "100svh", 
+      minHeight: "-webkit-fill-available",
       width: "100%", 
       position: "relative", 
       backgroundColor: "#000", 
@@ -43,7 +40,6 @@ export default function InkBackground({ children }: { children?: React.ReactNode
           pointerEvents: "none"
         }}
       />
-
       {/* Content Layer - Fixed height to force main scroller to activate */}
       <div style={{ 
         position: "relative", 
