@@ -120,7 +120,6 @@ const App: React.FC = () => {
     };
 
     const initApp = async () => {
-      // Demo / studio mode — skip real auth
       if (USE_MOCK_DATA || IS_STUDIO_MODE) {
         setIsAuthorized(true);
         setAuthStatus('authorized');
@@ -129,10 +128,8 @@ const App: React.FC = () => {
         return;
       }
 
-      // Configure MusicKit (fetches developer token from our Netlify function)
       await appleMusicService.configure();
 
-      // Check if user is already authorized
       try {
         const music = (window as any).MusicKit?.getInstance();
         if (music && music.isAuthorized) {
@@ -153,7 +150,6 @@ const App: React.FC = () => {
     return unsub;
   }, []);
 
-  // Listen for MusicKit authorization changes
   useEffect(() => {
     const handleAuthChange = () => {
       try {
@@ -221,7 +217,6 @@ const App: React.FC = () => {
 
   const isCurrentlyInPreview = showRunOverlay && !isRunViewQueueMode;
 
-  // Show login screen if not authorized and not in studio/demo mode
   if (initFinished && !isAuthorized && !IS_STUDIO_MODE) {
     return (
       <LoginView
@@ -234,7 +229,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="relative w-full overflow-hidden bg-black text-white" style={{ minHeight: '100svh', paddingBottom: '150px' }}
+    <div className="relative w-full overflow-hidden bg-black text-white" style={{ minHeight: '100svh' }}>
       <InkBackground>
         <ErrorBoundary>
           {/* Layer 0: Main Content */}
