@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { MUSIC_PLATFORM } from '../constants';
 import { appleMusicService } from '../services/appleMusicService';
@@ -10,7 +9,6 @@ interface LoginViewProps {
   onLoginSuccess?: () => void;
 }
 
-// Fixed broken variable declaration and removed inline duplicate imports
 const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const isApple = MUSIC_PLATFORM === 'apple';
 
@@ -19,8 +17,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     try {
       if (isApple) {
         await appleMusicService.login();
-        // Since login usually triggers a redirect or popup, success handling 
-        // will often happen on reload, but we call the hook if provided.
         onLoginSuccess?.();
       } else {
         await SpotifyAuth.login();
@@ -35,7 +31,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <InkBackground>
         <div className="flex flex-col items-center justify-center h-full px-8 text-center">
           <header className="mb-16 stagger-entry stagger-1">
-            <h1 className="text-8xl font-mango header-ombre leading-none tracking-tighter">GetReady</h1>
+            <h1 className="font-mango header-ombre leading-none tracking-tighter w-full" style={{ fontSize: 'clamp(3rem, 18vw, 6rem)' }}>GetReady</h1>
             <p className="ios-caption text-zinc-500 text-[10px] font-black uppercase tracking-[0.4em] mt-6">
               AI-Powered Music Curator
             </p>
