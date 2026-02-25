@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { RuleSettings, AppConfig } from '../types';
 import { BlockStore } from '../services/blockStore';
-import PerOptionRulesView from './PerOptionRulesView';
 import BlockedTracksView from './BlockedTracksView';
 import PodcastManagerView from './PodcastManagerView';
 import { appleMusicService } from '../services/appleMusicService';
 import { Haptics } from '../services/haptics';
 import { toastService } from '../services/toastService';
 import { MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
+
+// Per-Source Rules removed — Global Mix Logic covers it
 
 interface SettingsViewProps {
   config: AppConfig;
@@ -17,19 +18,23 @@ interface SettingsViewProps {
   setAuthStatus: (s: any) => void;
 }
 
-export type SettingsMode = 'root' | 'perOption' | 'hiddenTracks' | 'podcasts';
+export type SettingsMode = 'root' | 'hiddenTracks' | 'podcasts';
 
 const avenir = { fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' };
 
+// Toggle — teal instead of pink
 const Toggle: React.FC<{ checked: boolean; onToggle: () => void }> = ({ checked, onToggle }) => (
   <button
     onClick={onToggle}
-    className={`w-14 h-8 rounded-full transition-all relative active:scale-90 shrink-0 ${checked ? 'bg-palette-pink shadow-[0_0_12px_rgba(255,0,122,0.4)]' : 'bg-zinc-800'}`}
+    className={`w-14 h-8 rounded-full transition-all relative active:scale-90 shrink-0 ${
+      checked ? 'bg-palette-teal shadow-[0_0_12px_rgba(45,185,177,0.4)]' : 'bg-zinc-800'
+    }`}
   >
     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg transition-all ${checked ? 'left-7' : 'left-1'}`} />
   </button>
 );
 
+// SettingsRow — label text tinted pink
 const SettingsRow: React.FC<{
   icon: string;
   label: string;
@@ -43,7 +48,7 @@ const SettingsRow: React.FC<{
     <div className="flex items-center gap-4 text-left min-w-0">
       <span className="text-2xl group-active:scale-110 transition-transform shrink-0">{icon}</span>
       <div className="flex flex-col min-w-0">
-        <span className="text-[20px] font-semibold transition-colors truncate text-[#A9E8DF]" style={avenir}>
+        <span className="text-[20px] font-semibold transition-colors truncate" style={{ ...avenir, color: '#FFD6EC' }}>
           {label}
         </span>
         <span className="text-[10px] text-zinc-600 font-medium truncate" style={avenir}>{subtext}</span>
@@ -96,24 +101,18 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  if (mode === 'perOption')    return <PerOptionRulesView onBack={() => setMode('root')} />;
   if (mode === 'hiddenTracks') return <BlockedTracksView onBack={() => setMode('root')} />;
   if (mode === 'podcasts')     return <PodcastManagerView onBack={() => setMode('root')} rules={rules} setRules={setRules} />;
 
-  const moodLabel = rules.moodLevel < MOOD_ZONES.ZEN_MAX
-    ? 'Zen'
-    : rules.moodLevel < MOOD_ZONES.FOCUS_MAX
-    ? 'Focus'
-    : 'Chaos';
+  const moodLabel = rules.moodLevel < MOOD_ZONES.ZEN_MAX ? 'Zen'
+    : rules.moodLevel < MOOD_ZONES.FOCUS_MAX ? 'Focus' : 'Chaos';
 
-  const discoveryLabel = rules.discoverLevel <= DISCOVERY_ZONES.ZERO_CUTOFF
-    ? 'Favorites Only'
-    : rules.discoverLevel <= DISCOVERY_ZONES.FAMILIAR_MAX
-    ? 'Familiar Territory'
-    : 'Outside Your Norm';
+  const discoveryLabel = rules.discoverLevel <= DISCOVERY_ZONES.ZERO_CUTOFF ? 'Favorites Only'
+    : rules.discoverLevel <= DISCOVERY_ZONES.FAMILIAR_MAX ? 'Familiar Territory' : 'Outside Your Norm';
 
   return (
     <div className="flex flex-col gap-8 px-4 pt-24 pb-40 w-full">
+      {/* Header — ombre pink */}
       <header className="pl-4 stagger-entry stagger-1">
         <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Settings</h1>
         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-5 ml-1">Global Configuration</p>
@@ -125,23 +124,23 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
           <div className="px-6 py-5 flex items-center justify-between gap-4">
             <div className="flex flex-col min-w-0">
-              <span className="text-[20px] font-medium text-[#A9E8DF] truncate" style={avenir}>
+              {/* Apple Music label — tinted pink */}
+              <span className="text-[20px] font-medium truncate" style={{ ...avenir, color: '#FFD6EC' }}>
                 Apple Music
               </span>
               <span className="text-[11px] text-zinc-500 font-medium truncate" style={avenir}>
-                {authStatus === 'authorized'
-                  ? 'Connected'
-                  : authStatus === 'waiting'
-                  ? 'Connecting...'
+                {authStatus === 'authorized' ? 'Connected'
+                  : authStatus === 'waiting' ? 'Connecting...'
                   : 'Not connected'}
               </span>
             </div>
+            {/* Connect button — teal */}
             <button
               onClick={authStatus === 'authorized' ? handleDisconnect : handleConnect}
               className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shrink-0 ${
                 authStatus === 'authorized'
                   ? 'bg-zinc-800 text-zinc-400 active:bg-zinc-700'
-                  : 'bg-palette-pink text-white shadow-[0_0_12px_rgba(255,0,122,0.4)] active:scale-95'
+                  : 'bg-palette-teal text-white shadow-[0_0_12px_rgba(45,185,177,0.4)] active:scale-95'
               }`}
             >
               {authStatus === 'authorized' ? 'Disconnect' : 'Connect'}
@@ -166,12 +165,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             subtext="Manage your podcast shows"
             onClick={() => { Haptics.medium(); setMode('podcasts'); }}
           />
-          <SettingsRow
-            icon="⚙️"
-            label="Per-Source Rules"
-            subtext="Fine-tune each mix independently"
-            onClick={() => { Haptics.medium(); setMode('perOption'); }}
-          />
+          {/* Per-Source Rules removed */}
         </div>
       </section>
 
@@ -180,66 +174,66 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-5 mb-3">Global Mix Logic</h2>
         <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
 
-          {/* Playlist Length */}
+          {/* Playlist Length — label tinted pink, number teal */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Playlist Length</span>
-              <span className="text-palette-pink font-black text-2xl tabular-nums" style={avenir}>{rules.playlistLength}</span>
+              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Playlist Length</span>
+              <span className="font-black text-2xl tabular-nums text-palette-teal" style={avenir}>{rules.playlistLength}</span>
             </div>
             <input
               type="range" min="15" max="75" step="1"
               value={rules.playlistLength}
               onChange={e => { Haptics.light(); setRules(prev => ({ ...prev, playlistLength: parseInt(e.target.value) })); }}
-              className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-palette-pink"
+              className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-palette-teal"
             />
             <div className="flex justify-between text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
               <span>15</span><span>75</span>
             </div>
           </div>
 
-          {/* Mood Slider */}
+          {/* Default Mood — label tinted pink, value pink */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Default Mood</span>
-              <span className="text-palette-teal font-black text-lg" style={avenir}>{moodLabel}</span>
+              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Default Mood</span>
+              <span className="font-black text-lg text-palette-pink" style={avenir}>{moodLabel}</span>
             </div>
             <input
               type="range" min="0" max="1" step="0.01"
               value={rules.moodLevel}
               onChange={e => { Haptics.light(); setRules(prev => ({ ...prev, moodLevel: parseFloat(e.target.value) })); }}
-              className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-palette-teal"
+              className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-palette-pink"
             />
             <div className="flex justify-between text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
               <span>Zen</span><span>Focus</span><span>Chaos</span>
             </div>
           </div>
 
-          {/* Discovery Slider */}
+          {/* Default Exploration — label tinted pink, value teal */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Default Exploration</span>
-              <span className="text-palette-pink font-black text-sm" style={avenir}>{discoveryLabel}</span>
+              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Default Exploration</span>
+              <span className="font-black text-sm text-palette-teal" style={avenir}>{discoveryLabel}</span>
             </div>
             <input
               type="range" min="0" max="1" step="0.05"
               value={rules.discoverLevel}
               onChange={e => setRules(prev => ({ ...prev, discoverLevel: parseFloat(e.target.value) }))}
-              className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-palette-pink"
+              className="w-full h-2 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-palette-teal"
             />
             <div className="flex justify-between text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
               <span>Favorites</span><span>Familiar</span><span>Explore</span>
             </div>
           </div>
 
-          {/* Allow Explicit */}
+          {/* Allow Explicit — label tinted pink, toggle teal */}
           <div className="px-6 py-5 flex items-center justify-between">
-            <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Allow Explicit</span>
+            <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Allow Explicit</span>
             <Toggle checked={rules.allowExplicit} onToggle={() => toggle('allowExplicit')} />
           </div>
 
-          {/* Avoid Repeats */}
+          {/* Avoid Repeats — label tinted pink, toggle teal */}
           <div className="px-6 py-5 flex items-center justify-between">
-            <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Avoid Repeats</span>
+            <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Avoid Repeats</span>
             <Toggle checked={rules.avoidRepeats} onToggle={() => toggle('avoidRepeats')} />
           </div>
 
