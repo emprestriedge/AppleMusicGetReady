@@ -87,7 +87,7 @@ const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => vo
       </svg>
     </div>
     <div className="flex-1 min-w-0">
-      <div className="text-white font-black text-sm truncate" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{option.name}</div>
+      <div className="text-[#A9E8DF] font-semibold text-[20px] truncate" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{option.name}</div>
       <div className="text-zinc-500 text-[11px] mt-0.5 truncate" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>{option.description}</div>
     </div>
     <svg className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
