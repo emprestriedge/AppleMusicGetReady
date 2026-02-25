@@ -77,10 +77,10 @@ const CategoryCard: React.FC<{
 );
 
 // SourceButton — name and description use Bangla MN
-const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => void }> = ({ option, onSelect }) => (
-  <button
+const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => void; index?: number }> = ({ option, onSelect, index = 0 }) => {
+  return <button
     onClick={() => { Haptics.impact(); onSelect(option); }}
-    className="w-full bg-zinc-900/60 border border-white/8 rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left"
+    className={`w-full bg-zinc-900/60 border ${index % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
   >
     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-palette-pink/20 to-palette-teal/20 border border-white/10 flex items-center justify-center flex-shrink-0">
       <svg className="w-5 h-5 text-palette-pink" fill="currentColor" viewBox="0 0 24 24">
@@ -95,7 +95,7 @@ const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => vo
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
     </svg>
   </button>
-);
+};
 
 const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
   const [viewMode, setViewMode] = useState<HomeViewMode>('root');
@@ -336,8 +336,8 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
         <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Music</h1>
         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-3">Source Stations</p>
       </header>
-      {MUSIC_BUTTONS.map(option => (
-        <SourceButton key={option.id} option={option} onSelect={onSelect} />
+      {MUSIC_BUTTONS.map((option, i) => (
+        <SourceButton key={option.id} option={option} onSelect={onSelect} index={i} />
       ))}
     </div>
   );
@@ -366,11 +366,11 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
             </p>
           </div>
         ) : (
-          podcastShows.map(show => (
+          podcastShows.map((show, i) => (
             <button
               key={show.id}
               onClick={() => { Haptics.impact(); window.open(show.podcastUrl, '_blank'); }}
-              className="w-full bg-zinc-900/60 border border-white/8 rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left"
+              className={`w-full bg-zinc-900/60 border ${i % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
             >
               <img src={show.imageUrl} alt={show.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10" />
               <div className="flex-1 min-w-0">
