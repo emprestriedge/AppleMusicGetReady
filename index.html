@@ -6,17 +6,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="GetReady">
-    <meta name="theme-color" content="#000000">
-    
-    <!-- MusicKit JS -->
+    <meta name="theme-color" content="#020f0f">
     <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
-    
-    <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
-    
-    <!-- iOS Icons -->
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3669/3669986.png">
-    
+    <link rel="apple-touch-icon" href="/icon.png">
     <title>GetReady</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -51,8 +44,7 @@
             --palette-gold: #C5A04D;
             --palette-copper: #B7763D;
             --palette-emerald: #19A28E;
-            
-            /* Safe area support for iOS */
+            --tinted-pink: #FFD6EC;
             --safe-area-inset-top: env(safe-area-inset-top, 0px);
             --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
         }
@@ -70,7 +62,7 @@
             overscroll-behavior: none;
             margin: 0;
             padding: 0;
-            background-color: #000;
+            background-color: #020f0f;
         }
 
         body {
@@ -90,29 +82,15 @@
             100% { transform: translateX(0); }
         }
 
-        .marquee-content {
-            display: inline-block;
-            white-space: nowrap;
-            min-width: 100%;
-            animation: marquee 12s ease-in-out infinite;
-        }
-
-        .marquee-container {
-            overflow: hidden;
-            white-space: nowrap;
-            mask-image: linear-gradient(to right, black 85%, transparent 100%);
-            -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
-        }
+        .marquee-content { display: inline-block; white-space: nowrap; min-width: 100%; animation: marquee 12s ease-in-out infinite; }
+        .marquee-container { overflow: hidden; white-space: nowrap; mask-image: linear-gradient(to right, black 85%, transparent 100%); -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%); }
 
         @keyframes highlightShimmer {
             0%, 100% { transform: translate(-2px, -1px) rotate(-5deg); opacity: 0.5; }
             50% { transform: translate(3px, 2px) rotate(-4deg); opacity: 0.8; }
         }
 
-        @keyframes pulseSoft {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+        @keyframes pulseSoft { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         @keyframes inkDrift {
             0% { transform: scale(1.0) translate(0, 0); }
@@ -126,68 +104,38 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .stagger-entry {
-            animation: slideUpFade 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-            opacity: 0;
-        }
+        .stagger-entry { animation: slideUpFade 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards; opacity: 0; }
         .stagger-1 { animation-delay: 0.05s; }
         .stagger-2 { animation-delay: 0.1s; }
         .stagger-3 { animation-delay: 0.15s; }
         .stagger-4 { animation-delay: 0.2s; }
         .stagger-5 { animation-delay: 0.25s; }
 
-        .font-mango {
-            font-family: 'Bodoni Moda', serif;
-            letter-spacing: -0.03em;
-            font-weight: 900;
-            line-height: 0.85;
-        }
+        .font-mango { font-family: 'Bodoni Moda', serif; letter-spacing: -0.03em; font-weight: 900; line-height: 0.85; }
+        .font-gurmukhi { font-family: "Gurmukhi MN", "GurmukhiMN", "SF Pro Rounded", "Outfit", sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+        .font-skia { font-family: 'Skia', "SF Pro Rounded", 'SF Pro Display', 'Inter', sans-serif; letter-spacing: -0.02em; }
+        .font-bodoni-smallcaps { font-family: 'Bodoni Moda', serif; font-variant: small-caps; letter-spacing: 0.05em; font-weight: 500; }
 
-        .font-gurmukhi {
-            font-family: "Gurmukhi MN", "GurmukhiMN", "SF Pro Rounded", "Outfit", sans-serif;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-        }
-
-        .font-skia {
-            font-family: 'Skia', "SF Pro Rounded", 'SF Pro Display', 'Inter', sans-serif;
-            letter-spacing: -0.02em;
-        }
-
-        .font-bodoni-smallcaps {
-            font-family: 'Bodoni Moda', serif;
-            font-variant: small-caps;
-            letter-spacing: 0.05em;
-            font-weight: 500;
-        }
-
+        /* OMBRE PINK - all main headers */
         .header-ombre {
+            background: linear-gradient(to bottom, #FFFFFF 20%, #FF007A 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        /* OMBRE TEAL - kept as utility class */
+        .header-ombre-teal {
             background: linear-gradient(to bottom, #FFFFFF 20%, #19A28E 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             display: inline-block;
         }
 
-        .font-bodoni-body {
-            font-family: "Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif;
-            letter-spacing: 0.01em;
-            font-weight: 400;
-        }
+        .font-bodoni-body { font-family: "Bodoni 72 Oldstyle", "Bodoni 72", "Bodoni Moda", serif; letter-spacing: 0.01em; font-weight: 400; }
+        .font-garet { font-family: 'Outfit', sans-serif; letter-spacing: -0.01em; font-weight: 500; }
 
-        .font-garet {
-            font-family: 'Outfit', sans-serif;
-            letter-spacing: -0.01em;
-            font-weight: 500;
-        }
-
-        #root {
-            height: 100dvh;
-            width: 100vw;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
+        #root { height: 100dvh; width: 100vw; display: flex; flex-direction: column; overflow: hidden; position: relative; }
         
         .glass-panel-gold {
             background: rgba(197, 160, 77, 0.07);
@@ -197,60 +145,19 @@
             box-shadow: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.1);
         }
 
-        .header-text-responsive {
-            font-size: clamp(4.5rem, 18vw, 6.8rem);
-            line-height: 0.9;
-            max-width: 100%;
-            overflow-wrap: break-word;
-        }
+        .header-text-responsive { font-size: clamp(4.5rem, 18vw, 6.8rem); line-height: 0.9; max-width: 100%; overflow-wrap: break-word; }
+        .ios-caption { letter-spacing: 0.2em; text-transform: uppercase; font-weight: 900; }
+        ::-webkit-scrollbar { width: 0; height: 0; }
+        .ios-btn-active:active { transform: scale(0.96); opacity: 0.8; transition: all 0.1s ease-out; }
 
-        .ios-caption {
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            font-weight: 900;
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-ios { animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
 
-        ::-webkit-scrollbar {
-            width: 0;
-            height: 0;
-        }
-
-        .ios-btn-active:active {
-            transform: scale(0.96);
-            opacity: 0.8;
-            transition: all 0.1s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-ios {
-            animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-        }
-
-        .label-transition {
-            transition: opacity 180ms ease-out, transform 180ms ease-out;
-            will-change: opacity, transform;
-        }
-        .label-hidden {
-            opacity: 0;
-            transform: translateY(-4px);
-        }
-        .label-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .no-select {
-            -webkit-user-select: none;
-            user-select: none;
-        }
-
-        .ios-scroller {
-            -webkit-overflow-scrolling: touch;
-        }
+        .label-transition { transition: opacity 180ms ease-out, transform 180ms ease-out; will-change: opacity, transform; }
+        .label-hidden { opacity: 0; transform: translateY(-4px); }
+        .label-visible { opacity: 1; transform: translateY(0); }
+        .no-select { -webkit-user-select: none; user-select: none; }
+        .ios-scroller { -webkit-overflow-scrolling: touch; }
     </style>
 <script type="importmap">
 {
