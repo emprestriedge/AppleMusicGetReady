@@ -19,7 +19,7 @@ interface SettingsViewProps {
 
 export type SettingsMode = 'root' | 'perOption' | 'hiddenTracks' | 'podcasts';
 
-// ── Small reusable components ──────────────────────────────────────────
+const avenir = { fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' };
 
 const Toggle: React.FC<{ checked: boolean; onToggle: () => void }> = ({ checked, onToggle }) => (
   <button
@@ -43,10 +43,10 @@ const SettingsRow: React.FC<{
     <div className="flex items-center gap-4 text-left min-w-0">
       <span className="text-2xl group-active:scale-110 transition-transform shrink-0">{icon}</span>
       <div className="flex flex-col min-w-0">
-        <span className="text-[20px] font-garet font-semibold transition-colors truncate text-[#A9E8DF]">
+        <span className="text-[20px] font-semibold transition-colors truncate text-[#A9E8DF]" style={avenir}>
           {label}
         </span>
-        <span className="text-[10px] text-zinc-600 font-medium truncate">{subtext}</span>
+        <span className="text-[10px] text-zinc-600 font-medium truncate" style={avenir}>{subtext}</span>
       </div>
     </div>
     <svg className="w-5 h-5 text-zinc-700 group-active:translate-x-1 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -54,8 +54,6 @@ const SettingsRow: React.FC<{
     </svg>
   </button>
 );
-
-// ── Main SettingsView ──────────────────────────────────────────────────
 
 const SettingsView: React.FC<SettingsViewProps> = ({
   config, rules, setRules, authStatus, setAuthStatus
@@ -98,12 +96,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  // ── Sub-view routing ──
   if (mode === 'perOption')    return <PerOptionRulesView onBack={() => setMode('root')} />;
   if (mode === 'hiddenTracks') return <BlockedTracksView onBack={() => setMode('root')} />;
   if (mode === 'podcasts')     return <PodcastManagerView onBack={() => setMode('root')} rules={rules} setRules={setRules} />;
 
-  // ── Mood / Discovery labels ──
   const moodLabel = rules.moodLevel < MOOD_ZONES.ZEN_MAX
     ? 'Zen'
     : rules.moodLevel < MOOD_ZONES.FOCUS_MAX
@@ -123,16 +119,16 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-5 ml-1">Global Configuration</p>
       </header>
 
-      {/* ── Account ── */}
+      {/* Account */}
       <section className="w-full stagger-entry stagger-2">
         <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-5 mb-3">Account</h2>
         <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
           <div className="px-6 py-5 flex items-center justify-between gap-4">
             <div className="flex flex-col min-w-0">
-              <span className="text-[20px] font-garet font-medium text-[#A9E8DF] truncate">
+              <span className="text-[20px] font-medium text-[#A9E8DF] truncate" style={avenir}>
                 Apple Music
               </span>
-              <span className="text-[11px] text-zinc-500 font-medium truncate">
+              <span className="text-[11px] text-zinc-500 font-medium truncate" style={avenir}>
                 {authStatus === 'authorized'
                   ? 'Connected'
                   : authStatus === 'waiting'
@@ -154,7 +150,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* ── Library ── */}
+      {/* Library */}
       <section className="w-full stagger-entry stagger-3">
         <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-5 mb-3">Library</h2>
         <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
@@ -179,7 +175,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* ── Global Mix Logic ── */}
+      {/* Global Mix Logic */}
       <section className="w-full stagger-entry stagger-4">
         <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-5 mb-3">Global Mix Logic</h2>
         <div className="glass-panel-gold rounded-3xl overflow-hidden divide-y divide-white/5">
@@ -187,8 +183,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Playlist Length */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-garet font-medium text-[#A9E8DF]">Playlist Length</span>
-              <span className="text-palette-pink font-garet font-black text-2xl tabular-nums">{rules.playlistLength}</span>
+              <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Playlist Length</span>
+              <span className="text-palette-pink font-black text-2xl tabular-nums" style={avenir}>{rules.playlistLength}</span>
             </div>
             <input
               type="range" min="15" max="75" step="1"
@@ -204,8 +200,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Mood Slider */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-garet font-medium text-[#A9E8DF]">Default Mood</span>
-              <span className="text-palette-teal font-garet font-black text-lg">{moodLabel}</span>
+              <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Default Mood</span>
+              <span className="text-palette-teal font-black text-lg" style={avenir}>{moodLabel}</span>
             </div>
             <input
               type="range" min="0" max="1" step="0.01"
@@ -221,8 +217,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Discovery Slider */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-garet font-medium text-[#A9E8DF]">Default Exploration</span>
-              <span className="text-palette-pink font-garet font-black text-sm">{discoveryLabel}</span>
+              <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Default Exploration</span>
+              <span className="text-palette-pink font-black text-sm" style={avenir}>{discoveryLabel}</span>
             </div>
             <input
               type="range" min="0" max="1" step="0.05"
@@ -237,13 +233,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
           {/* Allow Explicit */}
           <div className="px-6 py-5 flex items-center justify-between">
-            <span className="text-[20px] font-garet font-medium text-[#A9E8DF]">Allow Explicit</span>
+            <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Allow Explicit</span>
             <Toggle checked={rules.allowExplicit} onToggle={() => toggle('allowExplicit')} />
           </div>
 
           {/* Avoid Repeats */}
           <div className="px-6 py-5 flex items-center justify-between">
-            <span className="text-[20px] font-garet font-medium text-[#A9E8DF]">Avoid Repeats</span>
+            <span className="text-[20px] font-medium text-[#A9E8DF]" style={avenir}>Avoid Repeats</span>
             <Toggle checked={rules.avoidRepeats} onToggle={() => toggle('avoidRepeats')} />
           </div>
 
