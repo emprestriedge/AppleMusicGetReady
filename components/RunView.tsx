@@ -54,7 +54,7 @@ const TrackRow: React.FC<{
   const didMove = useRef(false);
 
   const SWIPE_LIMIT = -100;
-  const LONG_PRESS_DURATION = 600;
+  const LONG_PRESS_DURATION = 900;
   const MOVEMENT_THRESHOLD = 12;
   const DOUBLE_TAP_MS = 350;
 
