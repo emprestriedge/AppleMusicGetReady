@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RunOption, RuleSettings, SmartMixPlan, VibeType, RunOptionType } from '../types';
-import { SMART_MIX_MODES, MUSIC_BUTTONS, PODCAST_OPTIONS, MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
+import { SMART_MIX_MODES, MUSIC_BUTTONS, MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
+import { getPodcastShows } from './PodcastManagerView';
 import { getSmartMixPlan, getMixInsight } from '../services/geminiService';
 import { Haptics } from '../services/haptics';
 
@@ -341,23 +342,56 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
     </div>
   );
 
-  const renderPodcast = () => (
-    <div className="flex flex-col gap-3 px-4 pt-24 pb-40">
-      <header className="mb-4 pl-4">
-        <button onClick={() => navigateTo('root')} className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-        <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Podcasts</h1>
-        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-3">Opens in Apple Podcasts</p>
-      </header>
-      {PODCAST_OPTIONS.map(option => (
-        <SourceButton key={option.id} option={option} onSelect={onSelect} />
-      ))}
-    </div>
-  );
+  const renderPodcast = () => {
+    const podcastShows = getPodcastShows();
+    return (
+      <div className="flex flex-col gap-3 px-4 pt-24 pb-40">
+        <header className="mb-4 pl-4">
+          <button onClick={() => navigateTo('root')} className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+          <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Podcasts</h1>
+          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-3">Opens in Apple Podcasts</p>
+        </header>
+        {podcastShows.length === 0 ? (
+          <div className="glass-panel-gold rounded-[32px] p-10 text-center mt-4">
+            <p className="text-zinc-500 text-[15px] mb-2" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>
+              No shows added yet
+            </p>
+            <p className="text-zinc-600 text-[12px]" style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>
+              Go to Settings → Podcast Manager to add your favorite shows
+            </p>
+          </div>
+        ) : (
+          podcastShows.map(show => (
+            <button
+              key={show.id}
+              onClick={() => { Haptics.impact(); window.open(show.podcastUrl, '_blank'); }}
+              className="w-full bg-zinc-900/60 border border-white/8 rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left"
+            >
+              <img src={show.imageUrl} alt={show.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[#A9E8DF] font-semibold text-[20px] truncate"
+                  style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>
+                  {show.name}
+                </p>
+                <p className="text-zinc-500 text-[11px] truncate mt-0.5"
+                  style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>
+                  {show.publisher}
+                </p>
+              </div>
+              <svg className="w-4 h-4 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          ))
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="w-full min-h-full">
