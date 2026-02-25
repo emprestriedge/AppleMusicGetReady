@@ -15,30 +15,16 @@ import { configStore } from './services/configStore';
 import { toastService, Toast } from './services/toastService';
 import { USE_MOCK_DATA, MOCK_HISTORY, IS_STUDIO_MODE } from './constants';
 
-interface ErrorBoundaryProps {
-  children?: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
+interface ErrorBoundaryProps { children?: ReactNode; }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
-
+  public state: ErrorBoundaryState = { hasError: false, error: null };
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
     const normalized = error instanceof Error ? error : new Error("Unknown Error");
     return { hasError: true, error: normalized };
   }
-
-  componentDidCatch(error: Error, _errorInfo: ErrorInfo) {
-    apiLogger.logError(`FATAL_CRASH: ${error.message}`);
-  }
-
+  componentDidCatch(error: Error, _errorInfo: ErrorInfo) { apiLogger.logError(`FATAL_CRASH: ${error.message}`); }
   render() {
     if (this.state.hasError) {
       return (
@@ -46,7 +32,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <div className="bg-zinc-900 border border-red-500/30 rounded-[44px] p-10 max-w-lg w-full text-center">
             <h1 className="text-4xl font-mango text-[#D1F2EB] mb-4">Catalog Error</h1>
             <p className="text-zinc-500 font-garet mb-8">{this.state.error?.message}</p>
-            <button onClick={() => window.location.reload()} className="w-full bg-palette-pink text-white font-black py-5 rounded-2xl">Reload</button>
+            <button onClick={() => window.location.reload()} className="w-full bg-palette-teal text-white font-black py-5 rounded-2xl">Reload</button>
           </div>
         </div>
       );
@@ -109,43 +95,23 @@ const App: React.FC = () => {
       setConfig(configStore.getConfig());
       setRules(configStore.getConfig().rules);
     });
-
     const loadHistory = () => {
       const saved = localStorage.getItem('spotify_buddy_history');
-      if (saved) {
-        setHistory(JSON.parse(saved));
-      } else if (USE_MOCK_DATA || IS_STUDIO_MODE) {
-        setHistory(MOCK_HISTORY);
-      }
+      if (saved) { setHistory(JSON.parse(saved)); }
+      else if (USE_MOCK_DATA || IS_STUDIO_MODE) { setHistory(MOCK_HISTORY); }
     };
-
     const initApp = async () => {
       if (USE_MOCK_DATA || IS_STUDIO_MODE) {
-        setIsAuthorized(true);
-        setAuthStatus('authorized');
-        loadHistory();
-        setInitFinished(true);
-        return;
+        setIsAuthorized(true); setAuthStatus('authorized'); loadHistory(); setInitFinished(true); return;
       }
-
       await appleMusicService.configure();
-
       try {
         const music = (window as any).MusicKit?.getInstance();
-        if (music && music.isAuthorized) {
-          setIsAuthorized(true);
-          setAuthStatus('authorized');
-        } else {
-          setAuthStatus('idle');
-        }
-      } catch (e) {
-        setAuthStatus('idle');
-      }
-
-      loadHistory();
-      setInitFinished(true);
+        if (music && music.isAuthorized) { setIsAuthorized(true); setAuthStatus('authorized'); }
+        else { setAuthStatus('idle'); }
+      } catch (e) { setAuthStatus('idle'); }
+      loadHistory(); setInitFinished(true);
     };
-
     initApp();
     return unsub;
   }, []);
@@ -154,16 +120,10 @@ const App: React.FC = () => {
     const handleAuthChange = () => {
       try {
         const music = (window as any).MusicKit?.getInstance();
-        if (music && music.isAuthorized) {
-          setIsAuthorized(true);
-          setAuthStatus('authorized');
-        } else {
-          setIsAuthorized(false);
-          setAuthStatus('idle');
-        }
+        if (music && music.isAuthorized) { setIsAuthorized(true); setAuthStatus('authorized'); }
+        else { setIsAuthorized(false); setAuthStatus('idle'); }
       } catch (e) {}
     };
-
     const music = (window as any).MusicKit?.getInstance();
     if (music) {
       music.addEventListener('authorizationStatusDidChange', handleAuthChange);
@@ -172,23 +132,16 @@ const App: React.FC = () => {
   }, [initFinished]);
 
   const handleTabClick = (tab: TabType) => {
-    triggerHaptic();
-    Haptics.light();
-    setShowRunOverlay(false);
-    if (tab !== activeTab) {
-      setActiveTab(tab);
-    } else {
+    triggerHaptic(); Haptics.light(); setShowRunOverlay(false);
+    if (tab !== activeTab) { setActiveTab(tab); }
+    else {
       if (tab === 'Home') setHomeKey(prev => prev + 1);
       if (tab === 'Settings') setSettingsKey(prev => prev + 1);
     }
   };
 
   const handleStartRun = (option: RunOption) => {
-    triggerHaptic();
-    setIsRunViewQueueMode(false);
-    setActiveRunOption(option);
-    setActiveRunResult(null);
-    setShowRunOverlay(true);
+    triggerHaptic(); setIsRunViewQueueMode(false); setActiveRunOption(option); setActiveRunResult(null); setShowRunOverlay(true);
   };
 
   const handleRunComplete = (result: RunResult) => {
@@ -207,83 +160,48 @@ const App: React.FC = () => {
   };
 
   const handleRestoreRun = () => {
-    if (activeRunOption) {
-      triggerHaptic();
-      Haptics.medium();
-      setIsRunViewQueueMode(true);
-      setShowRunOverlay(true);
-    }
+    if (activeRunOption) { triggerHaptic(); Haptics.medium(); setIsRunViewQueueMode(true); setShowRunOverlay(true); }
   };
 
   const isCurrentlyInPreview = showRunOverlay && !isRunViewQueueMode;
 
   if (initFinished && !isAuthorized && !IS_STUDIO_MODE) {
-    return (
-      <LoginView
-        onLoginSuccess={() => {
-          setIsAuthorized(true);
-          setAuthStatus('authorized');
-        }}
-      />
-    );
+    return <LoginView onLoginSuccess={() => { setIsAuthorized(true); setAuthStatus('authorized'); }} />;
   }
 
   return (
-    <div className="relative w-full overflow-hidden bg-black text-white" style={{ minHeight: '100svh' }}>
+    <div className="relative w-full overflow-hidden bg-[#020f0f] text-white" style={{ minHeight: '100svh' }}>
       <InkBackground>
         <ErrorBoundary>
-          {/* Layer 0: Main Content */}
           <div id="main-content-scroller" className="flex-1 overflow-y-auto ios-scroller w-full relative pb-[calc(100px+env(safe-area-inset-bottom))]">
-            {activeTab === 'Home' && (
-              <HomeView
-                key={homeKey}
-                onSelect={handleStartRun}
-                rules={rules}
-                setRules={setRules}
-              />
-            )}
+            {activeTab === 'Home' && <HomeView key={homeKey} onSelect={handleStartRun} rules={rules} setRules={setRules} />}
             {activeTab === 'Vault' && (
               <HistoryView
                 history={history}
                 onPreviewStarted={() => setIsRunViewQueueMode(false)}
-                onPlayTriggered={() => {
-                  setIsPlayerVisible(true);
-                  setIsRunViewQueueMode(true);
-                }}
+                onPlayTriggered={() => { setIsPlayerVisible(true); setIsRunViewQueueMode(true); }}
               />
             )}
             {activeTab === 'Settings' && (
-              <SettingsView
-                key={settingsKey}
-                config={config}
-                rules={rules}
-                setRules={setRules}
-                authStatus={authStatus}
-                setAuthStatus={setAuthStatus}
-              />
+              <SettingsView key={settingsKey} config={config} rules={rules} setRules={setRules} authStatus={authStatus} setAuthStatus={setAuthStatus} />
             )}
           </div>
 
-          {/* Layer 1: RunView Overlay */}
           {activeRunOption && showRunOverlay && (
             <RunView
-              option={activeRunOption}
-              rules={rules}
+              option={activeRunOption} rules={rules}
               onClose={() => setShowRunOverlay(false)}
               onComplete={handleRunComplete}
               initialResult={activeRunResult || undefined}
               onResultUpdate={setActiveRunResult}
-              onPlayTriggered={() => {
-                setIsPlayerVisible(true);
-                setIsRunViewQueueMode(true);
-              }}
+              onPlayTriggered={() => { setIsPlayerVisible(true); setIsRunViewQueueMode(true); }}
               onPreviewStarted={() => setIsRunViewQueueMode(false)}
               isQueueMode={isRunViewQueueMode}
               onRegenerate={() => setActiveRunResult(null)}
             />
           )}
 
-          {/* Layer 2: Navbar */}
+          {/* Navbar — active state changed from pink to teal */}
           <nav className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-3xl border-t border-white/5 flex justify-around items-center px-6 z-[2500] h-[85px] pb-[env(safe-area-inset-bottom)]">
             {(['Home', 'Vault', 'Settings'] as TabType[]).map((tab) => {
               const isActive = activeTab === tab;
@@ -293,12 +211,12 @@ const App: React.FC = () => {
                   onClick={() => handleTabClick(tab)}
                   className={`flex flex-col items-center gap-1 transition-all duration-300 ${isActive ? 'scale-110' : 'opacity-40'}`}
                 >
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isActive ? 'bg-palette-pink text-white shadow-xl shadow-palette-pink/30' : 'text-zinc-500'}`}>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isActive ? 'bg-palette-teal text-white shadow-xl shadow-palette-teal/30' : 'text-zinc-500'}`}>
                     {tab === 'Home' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>}
                     {tab === 'Vault' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 12l10 10 10-10L12 2z"/></svg>}
                     {tab === 'Settings' && <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l-.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>}
                   </div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-palette-pink' : 'text-zinc-600'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-palette-teal' : 'text-zinc-600'}`}>
                     {tab}
                   </span>
                 </button>
@@ -306,27 +224,16 @@ const App: React.FC = () => {
             })}
           </nav>
 
-          {/* Layer 3: Player (Floating above Navbar) */}
           {isPlayerVisible && !isCurrentlyInPreview && (
             <NowPlayingStrip
               onStripClick={handleRestoreRun}
-              onClose={() => {
-                setIsPlayerVisible(false);
-                setIsRunViewQueueMode(false);
-              }}
+              onClose={() => { setIsPlayerVisible(false); setIsRunViewQueueMode(false); }}
             />
           )}
         </ErrorBoundary>
-
         <ToastOverlay />
         <DemoModeIndicator />
-
-        <input
-          type="checkbox"
-          id="haptic-trigger"
-          {...({ switch: '' } as any)}
-          style={{ display: 'none', position: 'absolute', pointerEvents: 'none' }}
-        />
+        <input type="checkbox" id="haptic-trigger" {...({ switch: '' } as any)} style={{ display: 'none', position: 'absolute', pointerEvents: 'none' }} />
       </InkBackground>
     </div>
   );
