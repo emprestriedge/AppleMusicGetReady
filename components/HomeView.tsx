@@ -1,411 +1,640 @@
-import React, { useState, useEffect } from 'react';
-import { RunOption, RuleSettings, SmartMixPlan, VibeType, RunOptionType } from '../types';
-import { SMART_MIX_MODES, MUSIC_BUTTONS, MOOD_ZONES, DISCOVERY_ZONES } from '../constants';
-import { getPodcastShows } from './PodcastManagerView';
-import { getSmartMixPlan, getMixInsight } from '../services/geminiService';
-import { Haptics } from '../services/haptics';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { RunOption, RuleSettings, RunResult, RunOptionType, Track } from '../types';
+import { RuleOverrideStore } from '../services/ruleOverrideStore';
+import { getEffectiveRules } from '../utils/ruleUtils';
+import { applePlaybackEngine } from '../services/playbackEngine';
+import { Haptics, ImpactFeedbackStyle } from '../services/haptics';
+import { musicProvider } from '../services/musicProvider';
+import { AppleMusicProvider } from '../services/appleMusicProvider';
+import { BlockStore } from '../services/blockStore';
+import { apiLogger } from '../services/apiLogger';
+import { StatusAsterisk } from './HomeView';
+import { toastService } from '../services/toastService';
+import { USE_MOCK_DATA } from '../constants';
 
-// Tinted pink — soft, not crispy white, not bright pink
-const TINTED_PINK = '#FFD6EC';
-const avenir = { fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' };
+const appleLibrary = new AppleMusicProvider();
 
-export const StatusAsterisk: React.FC<{ status?: 'liked' | 'gem' | 'none' }> = ({ status = 'none' }) => {
-  const finalColor = (status === 'liked' || status === 'gem') ? '#FF007A' : '#555555';
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mr-2 sm:mr-3 mt-1" style={{ color: finalColor }}>
-      <path d="M12 3V21M4.2 7.5L19.8 16.5M19.8 7.5L4.2 16.5" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-    </svg>
-  );
-};
-
-export const PinkAsterisk = () => <StatusAsterisk status="liked" />;
-
-interface HomeViewProps {
-  onSelect: (option: RunOption) => void;
+interface RunViewProps {
+  option: RunOption;
   rules: RuleSettings;
-  setRules: React.Dispatch<React.SetStateAction<RuleSettings>>;
+  onClose: () => void;
+  onComplete: (result: RunResult) => void;
+  initialResult?: RunResult;
+  onResultUpdate?: (result: RunResult) => void;
+  onPlayTriggered?: () => void;
+  onPreviewStarted?: () => void;
+  isQueueMode?: boolean;
+  onRegenerate?: () => void;
 }
 
-type HomeViewMode = 'root' | 'music' | 'podcast';
+type GenStatus = 'IDLE' | 'RUNNING' | 'DONE' | 'ERROR';
+type ViewMode = 'PREVIEW' | 'QUEUE';
 
-// Mood label: teal→pink swap (Mood word is now pink, values stay dynamic)
-const AnimatedMoodLabel: React.FC<{ value: number }> = ({ value }) => {
-  const label = value < MOOD_ZONES.ZEN_MAX ? 'Zen' : value < MOOD_ZONES.FOCUS_MAX ? 'Focus' : 'Chaos';
-  const color = value < MOOD_ZONES.ZEN_MAX ? 'text-[#C5A04D]' : value < MOOD_ZONES.FOCUS_MAX ? 'text-[#2DB9B1]' : 'text-[#FF007A]';
-  return (
-    <span className={`text-[10px] font-black uppercase tracking-widest transition-colors duration-300 ${color}`}>
-      {label} · {Math.round(value * 100)}%
-    </span>
-  );
-};
+const TrackRow: React.FC<{
+  track: Track;
+  isActive: boolean;
+  index: number;
+  onPlay: (t: Track, i: number) => void;
+  onStatusToggle: (t: Track) => void;
+  onBlock: (t: Track) => void;
+  onHaptic: () => void;
+}> = ({ track, isActive, index, onPlay, onStatusToggle, onBlock, onHaptic }) => {
+  const [swipeX, setSwipeX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
 
-// Discovery label: was pink, now teal
-const DiscoveryLabel: React.FC<{ value: number }> = ({ value }) => {
-  const label = value <= DISCOVERY_ZONES.ZERO_CUTOFF ? 'Pure Favorites' : value <= DISCOVERY_ZONES.FAMILIAR_MAX ? `${Math.round(value * 100)}% Familiar` : `${Math.round(value * 100)}% Exploring`;
-  return <span className="text-[10px] font-black text-palette-teal uppercase tracking-widest">{label}</span>;
-};
+  const touchStartX = useRef<number | null>(null);
+  const lastTapTime = useRef<number>(0);
+  const lastTapTrackId = useRef<string>('');
+  const timerRef = useRef<any>(null);
+  const isLongPress = useRef(false);
+  const didMove = useRef(false);
 
-const VIBE_STYLES: Record<VibeType, { gradient: string; shadow: string; activeRing: string; label: string }> = {
-  Chaos:        { gradient: 'from-[#FF007A] to-[#FF4D9F]',   shadow: 'rgba(255, 0, 122, 0.6)',   activeRing: 'ring-[#FF007A]', label: 'CHAOS' },
-  Zen:          { gradient: 'from-[#C5A04D] to-[#E5C16D]',   shadow: 'rgba(197, 160, 77, 0.6)',  activeRing: 'ring-[#C5A04D]', label: 'ZEN' },
-  Focus:        { gradient: 'from-[#2DB9B1] to-[#40D9D0]',   shadow: 'rgba(45, 185, 177, 0.6)',  activeRing: 'ring-[#2DB9B1]', label: 'FOCUS' },
-  LighteningMix:{ gradient: 'from-[#6D28D9] to-[#8B5CF6]',   shadow: 'rgba(109, 40, 217, 0.6)', activeRing: 'ring-[#6D28D9]', label: 'LIGHTNING' },
-};
+  const SWIPE_LIMIT = -100;
+  const LONG_PRESS_DURATION = 900;
+  const MOVEMENT_THRESHOLD = 12;
+  const DOUBLE_TAP_MS = 350;
 
-// CategoryCard — Music=teal, Podcast=pink, more glassy
-const CategoryCard: React.FC<{
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  gradient: string;
-  shadowColor: string;
-  borderColor: string;
-  onClick: () => void;
-}> = ({ title, description, icon, gradient, shadowColor, borderColor, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`w-full relative overflow-hidden p-5 rounded-[32px] flex items-center gap-4 active:scale-[0.98] transition-all`}
-    style={{
-      background: gradient,
-      boxShadow: `0 8px 32px -4px ${shadowColor}, inset 0 1px 0 rgba(255,255,255,0.25)`,
-      border: `1px solid ${borderColor}`,
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
-    }}
-  >
-    {/* Glass shine */}
-    <div className="absolute top-0 left-0 right-0 h-[45%] bg-gradient-to-b from-white/20 to-transparent rounded-t-[32px] pointer-events-none" />
-    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-[32px] pointer-events-none" />
-    <div className="relative z-10 w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0 border border-white/20">
-      {icon}
-    </div>
-    <div className="relative z-10 text-left">
-      <div className="text-white font-black text-lg leading-none" style={avenir}>{title}</div>
-      <div className="text-white/75 text-xs mt-1 font-medium" style={avenir}>{description}</div>
-    </div>
-    <div className="relative z-10 ml-auto">
-      <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-      </svg>
-    </div>
-  </button>
-);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    setIsPressed(true);
+    isLongPress.current = false;
+    didMove.current = false;
 
-// SourceButton — tinted pink text, teal music note icon, alternating borders
-const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => void; index?: number }> = ({ option, onSelect, index = 0 }) => {
-  return <button
-    onClick={() => { Haptics.impact(); onSelect(option); }}
-    className={`w-full border ${index % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
-    style={{
-      background: 'rgba(197, 160, 77, 0.07)',
-      backdropFilter: 'blur(40px)',
-      WebkitBackdropFilter: 'blur(40px)',
-      boxShadow: 'inset 0 0.5px 0 0 rgba(255, 255, 255, 0.1)',
-    }}
-  >
-    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-palette-teal/20 to-palette-pink/20 border border-white/10 flex items-center justify-center flex-shrink-0">
-      <svg className="w-5 h-5 text-palette-teal" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-      </svg>
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="font-semibold text-[20px] truncate" style={{ ...avenir, color: TINTED_PINK }}>{option.name}</div>
-      <div className="text-zinc-500 text-[11px] mt-0.5 truncate" style={avenir}>{option.description}</div>
-    </div>
-    <svg className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-    </svg>
-  </button>
-};
-
-const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
-  const [viewMode, setViewMode] = useState<HomeViewMode>('root');
-  const [vibe, setVibe] = useState<VibeType>(() => {
-    if (rules.moodLevel <= MOOD_ZONES.ZEN_MAX) return 'Zen';
-    if (rules.moodLevel >= 0.9) return 'LighteningMix';
-    if (rules.discoverLevel >= 0.7) return 'Chaos';
-    return 'Focus';
-  });
-  const [loading, setLoading] = useState(false);
-  const [smartPlan, setSmartPlan] = useState<SmartMixPlan | null>(() => {
-    try { const saved = localStorage.getItem('getready_smart_plan'); return saved ? JSON.parse(saved) : null; }
-    catch { return null; }
-  });
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    const scroller = document.getElementById('main-content-scroller');
-    if (scroller) scroller.scrollTop = 0;
-  }, [viewMode]);
-
-  useEffect(() => {
-    if (smartPlan) localStorage.setItem('getready_smart_plan', JSON.stringify(smartPlan));
-  }, [smartPlan]);
-
-  const setVibeProfile = (v: VibeType) => {
-    Haptics.impact(); setVibe(v);
-    let mood = 0.5, discovery = 0.25;
-    switch (v) {
-      case 'Zen':           mood = 0.1;           discovery = 0.15; break;
-      case 'Focus':         mood = 0.4;           discovery = 0.25; break;
-      case 'Chaos':         mood = 0.8;           discovery = 0.6;  break;
-      case 'LighteningMix': mood = Math.random(); discovery = Math.random() * 0.7; break;
+    const now = Date.now();
+    const isSameTrack = lastTapTrackId.current === track.id;
+    if (isSameTrack && now - lastTapTime.current < DOUBLE_TAP_MS) {
+      clearTimeout(timerRef.current);
+      lastTapTime.current = 0;
+      lastTapTrackId.current = '';
+      onPlay(track, index);
+      Haptics.impactAsync(ImpactFeedbackStyle.Heavy);
+      return;
     }
-    setRules(prev => ({ ...prev, moodLevel: mood, discoverLevel: discovery }));
+
+    lastTapTime.current = now;
+    lastTapTrackId.current = track.id;
+
+    timerRef.current = setTimeout(() => {
+      if (!didMove.current) {
+        isLongPress.current = true;
+        onStatusToggle(track);
+      }
+    }, LONG_PRESS_DURATION);
   };
 
-  const handleGenerateSmartMix = async () => {
-    Haptics.medium(); setLoading(true);
-    try {
-      const plan = await getSmartMixPlan(vibe, rules.discoverLevel, rules.moodLevel, rules.playlistLength);
-      setSmartPlan(plan);
-      const vibeToOptionId: Record<VibeType, string> = { Chaos: 'chaos_mix', Zen: 'zen_mix', Focus: 'focus_mix', LighteningMix: 'lightning_mix' };
-      const option = SMART_MIX_MODES.find(o => o.id === vibeToOptionId[vibe]);
-      if (option) { Haptics.success(); setTimeout(() => { onSelect(option); setLoading(false); }, 800); }
-      else { setLoading(false); }
-    } catch (e) { Haptics.error(); setLoading(false); }
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const deltaX = e.touches[0].clientX - touchStartX.current;
+
+    if (Math.abs(deltaX) > MOVEMENT_THRESHOLD) {
+      clearTimeout(timerRef.current);
+      setIsPressed(false);
+      didMove.current = true;
+    }
+
+    if (deltaX < 0) {
+      setIsSwiping(true);
+      setSwipeX(deltaX);
+    }
   };
 
-  const navigateTo = (mode: HomeViewMode) => { Haptics.light(); setViewMode(mode); };
-  const LightningIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
-  );
+  const handleTouchEnd = () => {
+    clearTimeout(timerRef.current);
+    setIsPressed(false);
 
-  // Carved flower/asterisk for Smart Mix corner decoration
-  const FlowerDecor = () => (
-    <svg className="w-12 h-12" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'rgba(255,255,255,0.08)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>
-      <path d="M12 2C10.5 2 9.5 3.5 9.5 5c0 .8.3 1.5.7 2C9.2 6.7 8.2 6.5 7.5 7c-1.3.9-1.3 2.7 0 3.5.7.5 1.7.5 2.5.2-.2.7-.2 1.5 0 2.2-.8-.3-1.8-.3-2.5.2-1.3.8-1.3 2.6 0 3.5.7.5 1.7.3 2.2-.3-.4.5-.7 1.2-.7 2 0 1.5 1 3 2.5 3s2.5-1.5 2.5-3c0-.8-.3-1.5-.7-2 .5.6 1.5.8 2.2.3 1.3-.9 1.3-2.7 0-3.5-.7-.5-1.7-.5-2.5-.2.2-.7.2-1.5 0-2.2.8.3 1.8.3 2.5-.2 1.3-.8 1.3-2.6 0-3.5-.7-.5-1.7-.3-2.5 0 .4-.5.7-1.2.7-2C14.5 3.5 13.5 2 12 2z"/>
-    </svg>
-  );
+    if (!isLongPress.current && !didMove.current && Math.abs(swipeX) < 10) {
+      Haptics.impactAsync(ImpactFeedbackStyle.Light);
+    }
 
-  const renderRoot = () => (
-    <div className="flex flex-col gap-4 px-4 pt-24 pb-40 w-full max-w-[100vw] overflow-x-hidden">
-      <header className="mb-6 pl-8 stagger-entry stagger-1">
-        <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Library</h1>
-        <p className="ios-caption text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-5 ml-1">Daily Catalog</p>
-      </header>
+    if (!isLongPress.current && swipeX < SWIPE_LIMIT) {
+      Haptics.impactAsync(ImpactFeedbackStyle.Medium);
+      onBlock(track);
+    }
 
-      {/* Category Cards — Music=teal, Podcast=pink, glassy */}
-      <div className="flex flex-col gap-4 mb-6 stagger-entry stagger-2 w-full">
-        <CategoryCard
-          title="Music"
-          description="Custom mixes from your top tracks."
-          icon={<svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" /></svg>}
-          gradient="linear-gradient(135deg, rgba(45,185,177,0.45) 0%, rgba(25,162,142,0.35) 100%)"
-          shadowColor="rgba(45, 185, 177, 0.3)"
-          borderColor="rgba(45,185,177,0.35)"
-          onClick={() => navigateTo('music')}
-        />
-        <CategoryCard
-          title="Podcasts"
-          description="Open your favorite shows."
-          icon={<svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" /><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" /></svg>}
-          gradient="linear-gradient(135deg, rgba(255,0,122,0.4) 0%, rgba(255,77,159,0.3) 100%)"
-          shadowColor="rgba(255, 0, 122, 0.25)"
-          borderColor="rgba(255,0,122,0.3)"
-          onClick={() => navigateTo('podcast')}
-        />
+    setSwipeX(0);
+    setIsSwiping(false);
+    touchStartX.current = null;
+  };
+
+  return (
+    <div className="relative overflow-hidden bg-black first:rounded-t-[32px] last:rounded-b-[32px]">
+      <div
+        className="absolute inset-0 flex items-center justify-end px-10 transition-colors pointer-events-none"
+        style={{ backgroundColor: `rgba(255, 0, 122, ${Math.min(0.8, Math.abs(swipeX) / 100) * 0.3})` }}
+      >
+        <span
+          className="text-white font-black text-[12px] uppercase tracking-[0.4em]"
+          style={{ opacity: Math.min(1, Math.abs(swipeX) / 80) }}
+        >
+          Block
+        </span>
       </div>
-
-      {/* Smart Mix Card */}
-      <div className="glass-panel-gold rounded-[40px] p-4 sm:p-6 border-white/10 relative overflow-hidden group stagger-entry stagger-3 w-full">
-        {/* Corner flower decoration */}
-        <div className="absolute top-0 right-0 p-3 pointer-events-none">
-          <FlowerDecor />
+      <button
+        onContextMenu={e => e.preventDefault()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          touchAction: 'pan-y',
+          transform: `translateX(${swipeX}px) ${isPressed ? 'scale(0.97)' : 'scale(1)'}`,
+          transition: isSwiping ? 'none' : 'transform 0.4s cubic-bezier(0.23, 1, 0.32, 1)',
+        }}
+        className={`w-full flex items-center gap-4 p-5 transition-all group text-left select-none relative z-10 border-b border-[#6D28D9]/20 ${
+          isActive
+            ? 'bg-palette-teal/15 border-palette-teal/40 shadow-[inset_0_0_40px_rgba(45,185,177,0.15)]'
+            : 'bg-[#0a0a0a]/85 backdrop-blur-3xl hover:bg-white/5 active:bg-palette-teal/5'
+        }`}
+      >
+        <div className="relative shrink-0 flex items-center justify-center min-w-[24px]">
+          <StatusAsterisk status={track.status || 'none'} />
         </div>
-
-        {/* SMART MIX label — teal */}
-        <h2 className="text-[11px] font-black text-palette-teal uppercase tracking-[0.3em] mb-6">SMART MIX</h2>
-
-        <div className="flex flex-col gap-8">
-          <div className="flex flex-col gap-3">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">1. Select Vibe</span>
-            <div className="grid grid-cols-4 gap-3 px-5">
-              {(['Chaos', 'Zen', 'Focus', 'LighteningMix'] as VibeType[]).map(v => {
-                const style = VIBE_STYLES[v];
-                const isActive = vibe === v;
-                return (
-                  <div key={v} className="flex items-center justify-center">
-                    <button
-                      onClick={() => setVibeProfile(v)}
-                      className={`relative w-full aspect-square rounded-[20px] transition-all duration-300 active:scale-95 flex items-center justify-center ${isActive ? 'scale-110' : 'opacity-40 grayscale-[0.6] scale-100'}`}
-                    >
-                      {isActive && <div className="absolute inset-[-4px] rounded-[24px] blur-xl opacity-80 transition-all duration-300" style={{ backgroundColor: style.shadow.replace('0.6', '0.4') }} />}
-                      <div
-                        className={`absolute inset-0 bg-gradient-to-br ${style.gradient} rounded-[20px] transition-all duration-300 ${isActive ? `ring-[3px] ${style.activeRing} ring-offset-2 ring-offset-black` : 'border border-white/5'}`}
-                        style={{ boxShadow: isActive ? `0 12px 28px -4px ${style.shadow}, inset 0 6px 16px rgba(255,255,255,0.5)` : 'none' }}
-                      >
-                        <div className="absolute top-1 left-2 w-[85%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-[10px] blur-[0.6px] pointer-events-none" />
-                      </div>
-                      <div className="relative z-10 w-full h-full flex items-center justify-center overflow-visible p-1">
-                        {v === 'LighteningMix' ? (
-                          <LightningIcon className={`w-8 h-8 transition-colors ${isActive ? 'text-white' : 'text-zinc-300'} drop-shadow-md`} />
-                        ) : (
-                          <span className={`text-[10px] font-black uppercase tracking-tighter italic transform scale-x-[0.95] leading-none text-center px-0.5 transition-colors ${isActive ? 'text-white' : 'text-zinc-300'}`}>
-                            {style.label}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">2. Fine Tune</span>
-            <div className="flex flex-col gap-5">
-              {/* Mood slider — border pink, "Mood" label pink */}
-              <div className="bg-zinc-900/40 px-2 py-5 rounded-[28px] border border-palette-pink/20 relative overflow-hidden">
-                <div className="flex flex-col gap-2 relative z-10">
-                  <div className="flex justify-between items-center px-4">
-                    <span className="text-[9px] font-black text-palette-pink/60 uppercase tracking-widest">Mood</span>
-                    <AnimatedMoodLabel value={rules.moodLevel} />
-                  </div>
-                  <div className="px-2 py-8 -my-8 flex items-center relative touch-pan-y">
-                    <div className="absolute left-2 right-2 h-1.5 bg-zinc-800 rounded-full pointer-events-none" />
-                    <input type="range" min="0" max="1" step="0.01" value={rules.moodLevel}
-                      onChange={e => { Haptics.light(); setRules(prev => ({ ...prev, moodLevel: parseFloat(e.target.value) })); }}
-                      className="w-full h-16 appearance-none bg-transparent cursor-pointer accent-palette-pink relative z-10 outline-none"
-                    />
-                  </div>
-                  <div className="flex justify-between px-4 mt-1 text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
-                    <span>Zen</span><span>Focus</span><span>Chaos</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Exploration slider — border teal, "Exploration" label teal */}
-              <div className="bg-zinc-900/40 px-2 py-5 rounded-[28px] border border-palette-teal/20 relative overflow-hidden">
-                <div className="flex flex-col gap-2 relative z-10">
-                  <div className="flex justify-between items-center px-4">
-                    <span className="text-[9px] font-black text-palette-teal/60 uppercase tracking-widest">Exploration</span>
-                    <DiscoveryLabel value={rules.discoverLevel} />
-                  </div>
-                  <div className="px-2 py-8 -my-8 flex items-center relative touch-pan-y">
-                    <div className="absolute left-2 right-2 h-1.5 bg-zinc-800 rounded-full pointer-events-none" />
-                    <input type="range" min="0" max="1" step="0.05" value={rules.discoverLevel}
-                      onChange={e => setRules(prev => ({ ...prev, discoverLevel: parseFloat(e.target.value) }))}
-                      className="w-full h-16 appearance-none bg-transparent cursor-pointer accent-palette-teal relative z-10 outline-none"
-                    />
-                  </div>
-                  <div className="flex justify-between px-4 mt-1 text-[8px] font-black text-zinc-700 uppercase tracking-tighter">
-                    <span>Favorites</span><span>Familiar</span><span>Explore</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {smartPlan && (
-            <div className="bg-zinc-900/30 border border-white/5 rounded-[20px] px-4 py-3">
-              <div className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-1">{smartPlan.preset}</div>
-              <div className="text-[11px] font-garet text-zinc-400">{smartPlan.summary}</div>
-            </div>
-          )}
-
-          {/* Generate Smart Mix button — teal */}
-          <button
-            onClick={handleGenerateSmartMix}
-            disabled={loading}
-            className="w-full relative overflow-hidden bg-gradient-to-br from-[#2DB9B1] via-[#26a8a1] to-[#19A28E] py-5 rounded-[26px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all border border-white/15 shadow-xl shadow-palette-teal/30"
+        <div
+          className={`w-12 h-12 rounded-2xl bg-zinc-900 overflow-hidden shrink-0 border relative pointer-events-none transition-all duration-500 ${
+            isActive ? 'border-palette-teal/60 scale-105 shadow-[0_0_20px_rgba(45,185,177,0.4)]' : 'border-white/10'
+          }`}
+        >
+          <img src={track.imageUrl} alt="" className="w-full h-full object-cover" />
+          {isActive && <div className="absolute inset-0 bg-palette-teal/15 animate-pulse" />}
+        </div>
+        <div className="flex-1 min-w-0 pointer-events-none">
+          <h4
+            className={`text-[15px] font-gurmukhi leading-tight transition-colors duration-300 truncate ${
+              isActive ? 'text-palette-teal' : 'text-[#D1F2EB] group-active:text-palette-teal'
+            }`}
           >
-            <div className="absolute top-1 left-2 w-[90%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-full blur-[1px] animate-jelly-shimmer pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                </svg>
-              )}
-              <span className="text-white font-black text-sm uppercase tracking-widest">
-                {loading ? 'Building Mix...' : 'Generate Smart Mix'}
-              </span>
-            </div>
-          </button>
+            {track.title}
+          </h4>
+          <p className="text-[11px] text-zinc-500 font-medium truncate mt-1 font-garet">{track.artist}</p>
         </div>
-      </div>
+        <div
+          className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${
+            isActive ? 'bg-palette-teal scale-125 shadow-[0_0_10px_rgba(45,185,177,1)]' : 'bg-zinc-800'
+          }`}
+        />
+      </button>
     </div>
   );
+};
 
-  const renderMusic = () => (
-    <div className="flex flex-col gap-3 px-4 pt-24 pb-40">
-      <header className="mb-4 pl-4">
-        {/* Back button — teal */}
-        <button onClick={() => navigateTo('root')} className="text-palette-teal flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-        {/* Music header — ombre pink */}
-        <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Music</h1>
-        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-3">Source Stations</p>
-      </header>
-      {MUSIC_BUTTONS.map((option, i) => (
-        <SourceButton key={option.id} option={option} onSelect={onSelect} index={i} />
-      ))}
-    </div>
-  );
+const RunView: React.FC<RunViewProps> = ({
+  option, rules, onClose, onComplete, initialResult,
+  onResultUpdate, onPlayTriggered, onPreviewStarted, isQueueMode, onRegenerate,
+}) => {
+  const [genStatus, setGenStatus] = useState<GenStatus>(initialResult ? 'DONE' : 'IDLE');
+  const [viewMode, setViewMode] = useState<ViewMode>(isQueueMode ? 'QUEUE' : 'PREVIEW');
 
-  const renderPodcast = () => {
-    const podcastShows = getPodcastShows();
+  const [showSaveOptions, setShowSaveOptions] = useState(false);
+  const [namingDestination, setNamingDestination] = useState<'apple' | 'vault' | null>(null);
+  const [editName, setEditName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [currentPlayingUri, setCurrentPlayingUri] = useState<string | null>(null);
+  const [result, setResult] = useState<RunResult | null>(initialResult || null);
+  const [error, setError] = useState<string | null>(null);
+
+  const generationRequestId = useRef(0);
+  const effectiveRules = getEffectiveRules(rules, RuleOverrideStore.getForOption(option.id));
+
+  const fireHaptic = () => {
+    const el = document.getElementById('local-haptic-trigger');
+    if (el) (el as HTMLInputElement).click();
+  };
+
+  useEffect(() => {
+    if (viewMode !== 'QUEUE') onPreviewStarted?.();
+    if (initialResult) { setResult(initialResult); setGenStatus('DONE'); return; }
+    if (genStatus === 'IDLE') startRun();
+
+    const poll = setInterval(async () => {
+      try {
+        const state = await musicProvider.getPlaybackStatus();
+        if (state?.currentTrack?.uri) setCurrentPlayingUri(state.currentTrack.uri);
+      } catch { }
+    }, 3000);
+
+    return () => clearInterval(poll);
+  }, [option, rules, initialResult]);
+
+  const startRun = async () => {
+    generationRequestId.current++;
+    const reqId = generationRequestId.current;
+    setGenStatus('RUNNING');
+    setError(null);
+    Haptics.medium();
+
+    try {
+      const runResult = await applePlaybackEngine.generateRunResult(option, effectiveRules);
+      if (reqId !== generationRequestId.current) return;
+      setResult(runResult);
+      setGenStatus('DONE');
+      onResultUpdate?.(runResult);
+      Haptics.success();
+    } catch (err: any) {
+      if (reqId === generationRequestId.current) {
+        setError(err.message || 'Composition failed');
+        setGenStatus('ERROR');
+        Haptics.error();
+      }
+    }
+  };
+
+  const handlePlayAll = async () => {
+    if (!result?.tracks || result.tracks.length === 0) return;
+    Haptics.heavy();
+
+    try {
+      if (option.type === RunOptionType.PODCAST) {
+        window.location.href = 'podcasts://';
+        return;
+      }
+      const uris = result.tracks.map(t => t.uri);
+      await musicProvider.play(uris, 0);
+      setCurrentPlayingUri(result.tracks[0].uri);
+      setViewMode('QUEUE');
+      onPlayTriggered?.();
+      toastService.show('Mix loaded into Apple Music', 'success');
+    } catch (err: any) {
+      toastService.show(err.message || 'Playback failed', 'error');
+      Haptics.error();
+    }
+  };
+
+  const handlePlayTrack = async (track: Track, index: number) => {
+    if (!result?.tracks) return;
+    try {
+      const uris = result.tracks.map(t => t.uri);
+      await musicProvider.play(uris, index);
+      setCurrentPlayingUri(track.uri);
+      setViewMode('QUEUE');
+      onPlayTriggered?.();
+      Haptics.light();
+      toastService.show(`Playing: ${track.title}`, 'success');
+    } catch (err: any) {
+      toastService.show(err.message || 'Playback failed', 'error');
+    }
+  };
+
+  const handleOpenSource = () => {
+    Haptics.medium();
+    try {
+      const music = (window as any).MusicKit?.getInstance();
+      if (music && music.showPlaybackTargetPicker) {
+        music.showPlaybackTargetPicker();
+      } else {
+        toastService.show('Use AirPlay in Control Center to switch devices', 'info');
+      }
+    } catch {
+      toastService.show('Use AirPlay in Control Center to switch devices', 'info');
+    }
+  };
+
+  const handleToggleStatus = async (track: Track) => {
+    if (!result?.tracks) return;
+    const isGem = track.status === 'gem';
+    const newStatus: 'gem' | 'none' = isGem ? 'none' : 'gem';
+
+    const updatedTracks = result.tracks.map(t =>
+      t.id === track.id ? { ...t, status: newStatus } : t
+    );
+    const updatedResult = { ...result, tracks: updatedTracks };
+    setResult(updatedResult);
+    onResultUpdate?.(updatedResult);
+
+    if (newStatus === 'gem') {
+      Haptics.success();
+      toastService.show('⭐ Added to Gems', 'success');
+    } else {
+      Haptics.medium();
+      toastService.show('Removed from Gems', 'info');
+    }
+
+    try {
+      if (!USE_MOCK_DATA) {
+        if (newStatus === 'gem') {
+          await appleLibrary.addTrackToGems(track.id);
+        } else {
+          await appleLibrary.removeTrackFromGems(track.id);
+        }
+      }
+    } catch (err: any) {
+      const revertedTracks = result.tracks.map(t =>
+        t.id === track.id ? { ...t, status: track.status } : t
+      );
+      setResult({ ...result, tracks: revertedTracks });
+      onResultUpdate?.({ ...result, tracks: revertedTracks });
+      toastService.show('Failed to save gem — try again', 'error');
+      apiLogger.logError(`Gems toggle failed for ${track.id}: ${err.message}`);
+    }
+  };
+
+  const handleBlockTrack = (track: Track) => {
+    if (!result?.tracks) return;
+    Haptics.heavy();
+    BlockStore.addBlocked(track);
+    const updatedTracks = result.tracks.filter(t => t.id !== track.id);
+    const updatedResult = { ...result, tracks: updatedTracks };
+    setResult(updatedResult);
+    onResultUpdate?.(updatedResult);
+    toastService.show('Track hidden from future mixes', 'info');
+  };
+
+  const handleSaveToVault = () => {
+    setEditName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
+    setNamingDestination('vault');
+    setShowSaveOptions(false);
+  };
+
+  const handleSaveToAppleMusic = () => {
+    setEditName(`${option.name} Mix - ${new Date().toLocaleDateString()}`);
+    setNamingDestination('apple');
+    setShowSaveOptions(false);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!editName.trim() || !result) return;
+    Haptics.impact();
+
+    if (namingDestination === 'vault') {
+      const updatedResult = { ...result, playlistName: editName.trim() };
+      onComplete(updatedResult);
+      toastService.show(`Archived as "${editName.trim()}"`, 'success');
+      setNamingDestination(null);
+    } else if (namingDestination === 'apple') {
+      setIsSaving(true);
+      try {
+        const trackIds = (result.tracks || []).map(t => t.id);
+        const playlist = await appleLibrary.createContainer(editName.trim(), `Generated by GetReady - ${option.name}`);
+        await appleLibrary.addTracksToPlaylist(playlist.id, trackIds);
+        Haptics.success();
+        toastService.show(`"${editName.trim()}" saved to Apple Music`, 'success');
+        setNamingDestination(null);
+      } catch (err: any) {
+        toastService.show(err.message || 'Save failed', 'error');
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleRegenerate = () => {
+    Haptics.medium();
+    onRegenerate?.();
+    startRun();
+  };
+
+  const totalDurationStr = useMemo(() => {
+    if (!result?.tracks) return null;
+    const mins = Math.floor(result.tracks.reduce((acc, t) => acc + (t.durationMs || 0), 0) / 60000);
+    return mins > 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} mins`;
+  }, [result]);
+
+  if (genStatus === 'RUNNING') {
     return (
-      <div className="flex flex-col gap-3 px-4 pt-24 pb-40">
-        <header className="mb-4 pl-4">
-          {/* Back button — teal */}
-          <button onClick={() => navigateTo('root')} className="text-palette-teal flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50 mb-4">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-          {/* Podcasts header — ombre pink */}
-          <h1 className="text-7xl font-mango header-ombre leading-none tracking-tighter">Podcasts</h1>
-          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-3">Opens in Apple Podcasts</p>
-        </header>
-        {podcastShows.length === 0 ? (
-          <div className="glass-panel-gold rounded-[32px] p-10 text-center mt-4">
-            <p className="text-[15px] mb-2" style={{ ...avenir, color: TINTED_PINK }}>No shows added yet</p>
-            <p className="text-zinc-600 text-[12px]" style={avenir}>Go to Settings → Podcast Manager to add your favorite shows</p>
-          </div>
-        ) : (
-          podcastShows.map((show, i) => (
-            <button
-              key={show.id}
-              onClick={() => { Haptics.impact(); window.open(show.podcastUrl, '_blank'); }}
-              className={`w-full border ${i % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
-              style={{
-                background: 'rgba(197, 160, 77, 0.07)',
-                backdropFilter: 'blur(40px)',
-                WebkitBackdropFilter: 'blur(40px)',
-                boxShadow: 'inset 0 0.5px 0 0 rgba(255, 255, 255, 0.1)',
-              }}
-            >
-              <img src={show.imageUrl} alt={show.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10" />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[20px] truncate" style={{ ...avenir, color: TINTED_PINK }}>{show.name}</p>
-                <p className="text-zinc-500 text-[11px] truncate mt-0.5" style={avenir}>{show.publisher}</p>
-              </div>
-              <svg className="w-4 h-4 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ))
-        )}
+      <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center p-8 animate-in fade-in duration-300">
+        <div className="w-20 h-20 border-4 border-palette-teal border-t-transparent rounded-full animate-spin mb-8" />
+        <h2 className="text-4xl font-mango text-[#D1F2EB] mb-2">Composing Mix</h2>
+        <p className="text-zinc-500 font-garet text-center max-w-xs uppercase tracking-widest text-[10px]">
+          Building your {option.name} mix...
+        </p>
       </div>
     );
-  };
+  }
+
+  if (genStatus === 'ERROR') {
+    return (
+      <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center p-8 gap-6">
+        <div className="text-5xl">⚠️</div>
+        <h2 className="text-3xl font-mango text-palette-teal">Mix Failed</h2>
+        <p className="text-zinc-500 text-center text-sm max-w-xs">{error}</p>
+        <button
+          onClick={startRun}
+          className="bg-palette-teal text-white font-black uppercase tracking-widest text-sm px-8 py-4 rounded-2xl active:scale-95 transition-all"
+        >
+          Try Again
+        </button>
+        <button onClick={onClose} className="text-zinc-600 font-black uppercase tracking-widest text-xs">
+          Back
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full min-h-full">
-      {viewMode === 'root' && renderRoot()}
-      {viewMode === 'music' && renderMusic()}
-      {viewMode === 'podcast' && renderPodcast()}
+    <div className="fixed inset-0 z-[1000] bg-black flex flex-col animate-in slide-in-from-bottom duration-500 pb-[85px]">
+
+      <header className="px-6 pb-6 flex items-center justify-between border-b border-white/5 bg-black/30 shrink-0 pt-16">
+        {/* Back button — teal */}
+        <button
+          onClick={() => { Haptics.impactAsync(ImpactFeedbackStyle.Light); onClose(); }}
+          className="text-palette-teal text-[14px] font-black uppercase tracking-[0.2em] active:opacity-50 transition-opacity"
+        >
+          Back
+        </button>
+        <div className="flex flex-col items-center">
+          <span className="font-black text-[10px] uppercase tracking-[0.5em] text-zinc-600 leading-none">
+            {viewMode === 'QUEUE' ? 'Active Queue' : 'Preview Mix'}
+          </span>
+        </div>
+        <div className="w-12" />
+      </header>
+
+      <div className="flex-1 overflow-y-auto ios-scroller p-6 flex flex-col gap-8 pb-[180px] overflow-x-hidden w-full">
+        <div className="flex flex-col gap-6">
+
+          <header className="flex flex-col gap-4 px-4 stagger-entry stagger-1">
+            <div className="w-full overflow-hidden whitespace-nowrap relative py-2">
+              <h2 className="leading-none font-mango header-ombre tracking-tighter drop-shadow-2xl text-7xl animate-[marquee_15s_linear_infinite] pb-2">
+                {option.name}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-3 w-full">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="bg-palette-gold/10 border border-palette-gold/30 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                  <span className="text-palette-gold text-[10px] font-black uppercase tracking-[0.15em] leading-none">
+                    {result?.tracks?.length || 0} Tracks
+                  </span>
+                </div>
+                <div className="bg-[#6D28D9]/10 border border-[#6D28D9]/30 px-3 py-1.5 rounded-xl whitespace-nowrap">
+                  <span className="text-[#8B5CF6] text-[10px] font-black uppercase tracking-[0.15em]">
+                    {totalDurationStr}
+                  </span>
+                </div>
+              </div>
+
+              {/* Play Mix / Source button — teal in preview mode */}
+              {genStatus === 'DONE' && (
+                <button
+                  onClick={() => {
+                    Haptics.impactAsync(ImpactFeedbackStyle.Light);
+                    if (viewMode === 'PREVIEW') {
+                      handlePlayAll();
+                    } else {
+                      handleOpenSource();
+                    }
+                  }}
+                  className={`flex-1 relative overflow-hidden px-4 py-2.5 rounded-[20px] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border ${
+                    viewMode === 'PREVIEW'
+                      ? 'border-palette-teal/40 bg-palette-teal/15 text-palette-teal shadow-palette-teal/20'
+                      : 'border-palette-emerald/40 bg-palette-emerald/15 text-palette-emerald shadow-palette-emerald/20'
+                  }`}
+                >
+                  <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    {viewMode === 'PREVIEW' ? (
+                      <path d="M8 5v14l11-7z" />
+                    ) : (
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+                    )}
+                  </svg>
+                  <span className="font-black text-[11px] uppercase tracking-wider leading-[1.1] text-left">
+                    {viewMode === 'PREVIEW' ? 'Play Mix' : 'Source'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </header>
+
+          <div className="bg-[#0a0a0a]/60 backdrop-blur-3xl rounded-[32px] overflow-hidden border border-white/10 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] stagger-entry stagger-3">
+            <div className="divide-y divide-[#6D28D9]/20">
+              {result?.tracks?.map((track, i) => (
+                <TrackRow
+                  key={track.uri + i}
+                  track={track}
+                  isActive={currentPlayingUri === track.uri}
+                  index={i}
+                  onPlay={handlePlayTrack}
+                  onStatusToggle={handleToggleStatus}
+                  onBlock={handleBlockTrack}
+                  onHaptic={fireHaptic}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {viewMode === 'PREVIEW' && (
+        <div
+          className="fixed left-0 right-0 px-6 pt-10 pb-3 bg-gradient-to-t from-black via-black/95 to-transparent z-[100]"
+          style={{ bottom: '85px' }}
+        >
+          <div className="flex items-center gap-4">
+            {/* Regenerate button — unchanged gold */}
+            <button
+              onClick={handleRegenerate}
+              className="flex-1 relative overflow-hidden bg-zinc-900 border border-white/10 text-palette-gold font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="text-sm font-garet font-bold uppercase tracking-widest">Regenerate</span>
+            </button>
+
+            {/* Save button — teal */}
+            <button
+              onClick={() => { Haptics.heavy(); setShowSaveOptions(true); }}
+              className="flex-1 relative overflow-hidden bg-palette-teal text-white font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-2xl shadow-palette-teal/30 border border-white/10"
+            >
+              <div className="absolute top-1 left-2 w-[90%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-full blur-[1px] animate-jelly-shimmer pointer-events-none" />
+              <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+              <span className="text-sm font-garet font-bold uppercase tracking-widest relative z-10">Save</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showSaveOptions && (
+        <div
+          className="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300"
+          onClick={() => setShowSaveOptions(false)}
+        >
+          <div
+            className="bg-zinc-900 border border-white/10 rounded-[44px] p-8 w-full max-w-sm flex flex-col gap-6 shadow-2xl animate-in zoom-in duration-500"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="text-center">
+              <h2 className="text-4xl font-mango text-[#D1F2EB] leading-none">Save Playlist</h2>
+              <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-2">Persistence Flow</p>
+            </header>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleSaveToAppleMusic}
+                className="w-full py-6 rounded-[28px] bg-palette-teal/10 border border-palette-teal/40 text-palette-teal flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg"
+              >
+                <span className="font-garet font-black text-[13px] uppercase tracking-widest">Save to Apple Music</span>
+                <span className="text-[9px] opacity-70 font-bold">Create Official Playlist</span>
+              </button>
+              <button
+                onClick={handleSaveToVault}
+                className="w-full py-6 rounded-[28px] bg-palette-gold/10 border border-palette-gold/40 text-palette-gold flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg"
+              >
+                <span className="font-garet font-black text-[13px] uppercase tracking-widest">Save to Vault</span>
+                <span className="text-[9px] opacity-70 font-bold">Internal App History</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setShowSaveOptions(false)}
+              className="w-full py-2 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {namingDestination && (
+        <div className="fixed inset-0 z-[10002] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div
+            className="bg-zinc-900 border border-white/10 rounded-[44px] p-8 w-full max-w-sm flex flex-col gap-6 shadow-2xl animate-in zoom-in duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <header>
+              <h2 className="text-4xl font-mango text-[#D1F2EB] leading-none">Name your playlist</h2>
+              <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-2">Finalize record title</p>
+            </header>
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                autoFocus
+                className={`bg-black/40 border ${editName.trim() === '' ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-[#D1F2EB] font-garet font-bold outline-none focus:border-palette-teal transition-all`}
+              />
+              {editName.trim() === '' && (
+                <span className="text-[9px] text-red-500 font-bold uppercase tracking-widest px-1">Name cannot be empty</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-3">
+              {/* Confirm Save button — teal */}
+              <button
+                onClick={handleConfirmSave}
+                disabled={editName.trim() === '' || isSaving}
+                className="w-full bg-palette-teal text-white font-black py-5 rounded-[24px] active:scale-95 transition-all font-garet uppercase tracking-widest text-xs shadow-xl shadow-palette-teal/20 disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => setNamingDestination(null)}
+                className="w-full py-2 text-zinc-600 font-black uppercase tracking-widest text-[10px] active:text-zinc-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        type="checkbox"
+        id="local-haptic-trigger"
+        style={{ opacity: 0, position: 'absolute', pointerEvents: 'none', zIndex: -1 }}
+      />
     </div>
   );
 };
 
-export default HomeView;
+export default RunView;
