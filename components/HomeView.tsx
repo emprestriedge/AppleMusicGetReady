@@ -95,7 +95,13 @@ const CategoryCard: React.FC<{
 const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => void; index?: number }> = ({ option, onSelect, index = 0 }) => {
   return <button
     onClick={() => { Haptics.impact(); onSelect(option); }}
-    className={`w-full bg-zinc-900/60 border ${index % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
+    className={`w-full border ${index % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
+    style={{
+      background: 'rgba(197, 160, 77, 0.07)',
+      backdropFilter: 'blur(40px)',
+      WebkitBackdropFilter: 'blur(40px)',
+      boxShadow: 'inset 0 0.5px 0 0 rgba(255, 255, 255, 0.1)',
+    }}
   >
     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-palette-teal/20 to-palette-pink/20 border border-white/10 flex items-center justify-center flex-shrink-0">
       <svg className="w-5 h-5 text-palette-teal" fill="currentColor" viewBox="0 0 24 24">
@@ -370,7 +376,13 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
             <button
               key={show.id}
               onClick={() => { Haptics.impact(); window.open(show.podcastUrl, '_blank'); }}
-              className={`w-full bg-zinc-900/60 border ${i % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
+              className={`w-full border ${i % 2 === 0 ? 'border-palette-pink/25' : 'border-palette-teal/25'} rounded-[24px] p-4 flex items-center gap-3 active:scale-[0.98] transition-all text-left`}
+              style={{
+                background: 'rgba(197, 160, 77, 0.07)',
+                backdropFilter: 'blur(40px)',
+                WebkitBackdropFilter: 'blur(40px)',
+                boxShadow: 'inset 0 0.5px 0 0 rgba(255, 255, 255, 0.1)',
+              }}
             >
               <img src={show.imageUrl} alt={show.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10" />
               <div className="flex-1 min-w-0">
