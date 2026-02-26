@@ -139,7 +139,7 @@ const VaultRecordRow: React.FC<{
             <Badge label={moodLabel} colorClass="text-palette-teal border-palette-teal/20 bg-palette-teal/10" />
             <Badge
               label={record.rulesSnapshot.allowExplicit ? 'Uncensored' : 'Filtered'}
-              colorClass="text-zinc-500 border-zinc-700 bg-zinc-900"
+              colorClass={record.rulesSnapshot.allowExplicit ? "text-[#8B5CF6] border-[#6D28D9]/40 bg-[#6D28D9]/10" : "text-zinc-500 border-zinc-700 bg-zinc-900"}
             />
             {record.rulesSnapshot.avoidRepeats && (
               <Badge label="No Dupes" colorClass="text-palette-copper border-palette-copper/20 bg-palette-copper/10" />
