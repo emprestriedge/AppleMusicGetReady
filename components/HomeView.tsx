@@ -6,7 +6,7 @@ import { getSmartMixPlan, getMixInsight } from '../services/geminiService';
 import { Haptics } from '../services/haptics';
 
 // Tinted pink — soft, not crispy white, not bright pink
-const TINTED_PINK = '#FFD6EC';
+const TINTED_TEAL = '#A9E8DF';
 const avenir = { fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' };
 
 export const StatusAsterisk: React.FC<{ status?: 'liked' | 'gem' | 'none' }> = ({ status = 'none' }) => {
@@ -104,12 +104,12 @@ const SourceButton: React.FC<{ option: RunOption; onSelect: (o: RunOption) => vo
     }}
   >
     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-palette-teal/20 to-palette-pink/20 border border-white/10 flex items-center justify-center flex-shrink-0">
-      <svg className="w-5 h-5 text-palette-teal" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+      <svg className="w-5 h-5 text-palette-teal" viewBox="0 0 24 24" fill="none">
+        <path d="M12 3V21M4.2 7.5L19.8 16.5M19.8 7.5L4.2 16.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
       </svg>
     </div>
     <div className="flex-1 min-w-0">
-      <div className="font-semibold text-[20px] truncate" style={{ ...avenir, color: TINTED_PINK }}>{option.name}</div>
+      <div className="font-semibold text-[20px] truncate" style={{ ...avenir, color: '#A9E8DF' }}>{option.name}</div>
       <div className="text-zinc-500 text-[11px] mt-0.5 truncate" style={avenir}>{option.description}</div>
     </div>
     <svg className="w-4 h-4 text-zinc-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -391,7 +391,7 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
         </header>
         {podcastShows.length === 0 ? (
           <div className="glass-panel-gold rounded-[32px] p-10 text-center mt-4">
-            <p className="text-[15px] mb-2" style={{ ...avenir, color: TINTED_PINK }}>No shows added yet</p>
+            <p className="text-[15px] mb-2" style={{ ...avenir, color: '#A9E8DF' }}>No shows added yet</p>
             <p className="text-zinc-600 text-[12px]" style={avenir}>Go to Settings → Podcast Manager to add your favorite shows</p>
           </div>
         ) : (
@@ -409,7 +409,7 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelect, rules, setRules }) => {
             >
               <img src={show.imageUrl} alt={show.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10" />
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[20px] truncate" style={{ ...avenir, color: TINTED_PINK }}>{show.name}</p>
+                <p className="font-semibold text-[20px] truncate" style={{ ...avenir, color: '#A9E8DF' }}>{show.name}</p>
                 <p className="text-zinc-500 text-[11px] truncate mt-0.5" style={avenir}>{show.publisher}</p>
               </div>
               <svg className="w-4 h-4 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
