@@ -30,8 +30,6 @@ interface RunViewProps {
 type GenStatus = 'IDLE' | 'RUNNING' | 'DONE' | 'ERROR';
 type ViewMode = 'PREVIEW' | 'QUEUE';
 
-// ── TrackRow ───────────────────────────────────────────────────────────
-
 const TrackRow: React.FC<{
   track: Track;
   isActive: boolean;
@@ -47,7 +45,6 @@ const TrackRow: React.FC<{
 
   const touchStartX = useRef<number | null>(null);
   const lastTapTime = useRef<number>(0);
-  // Store which track ID got the first tap so double-tap only fires on same track
   const lastTapTrackId = useRef<string>('');
   const timerRef = useRef<any>(null);
   const isLongPress = useRef(false);
@@ -64,11 +61,9 @@ const TrackRow: React.FC<{
     isLongPress.current = false;
     didMove.current = false;
 
-    // Check for double-tap on the SAME track
     const now = Date.now();
     const isSameTrack = lastTapTrackId.current === track.id;
     if (isSameTrack && now - lastTapTime.current < DOUBLE_TAP_MS) {
-      // Double tap confirmed — play this track
       clearTimeout(timerRef.current);
       lastTapTime.current = 0;
       lastTapTrackId.current = '';
@@ -77,7 +72,6 @@ const TrackRow: React.FC<{
       return;
     }
 
-    // First tap — record it and start long-press timer
     lastTapTime.current = now;
     lastTapTrackId.current = track.id;
 
@@ -183,8 +177,6 @@ const TrackRow: React.FC<{
   );
 };
 
-// ── RunView ────────────────────────────────────────────────────────────
-
 const RunView: React.FC<RunViewProps> = ({
   option, rules, onClose, onComplete, initialResult,
   onResultUpdate, onPlayTriggered, onPreviewStarted, isQueueMode, onRegenerate,
@@ -258,7 +250,7 @@ const RunView: React.FC<RunViewProps> = ({
       }
       const uris = result.tracks.map(t => t.uri);
       await musicProvider.play(uris, 0);
-      setCurrentPlayingUri(result.tracks[0].uri); // highlight first track immediately
+      setCurrentPlayingUri(result.tracks[0].uri);
       setViewMode('QUEUE');
       onPlayTriggered?.();
       toastService.show('Mix loaded into Apple Music', 'success');
@@ -297,13 +289,11 @@ const RunView: React.FC<RunViewProps> = ({
     }
   };
 
-  // ── Gem toggle — optimistic update so asterisk lights up immediately ──
   const handleToggleStatus = async (track: Track) => {
     if (!result?.tracks) return;
     const isGem = track.status === 'gem';
     const newStatus: 'gem' | 'none' = isGem ? 'none' : 'gem';
 
-    // Update UI immediately (optimistic)
     const updatedTracks = result.tracks.map(t =>
       t.id === track.id ? { ...t, status: newStatus } : t
     );
@@ -319,7 +309,6 @@ const RunView: React.FC<RunViewProps> = ({
       toastService.show('Removed from Gems', 'info');
     }
 
-    // Then do the async API call in the background
     try {
       if (!USE_MOCK_DATA) {
         if (newStatus === 'gem') {
@@ -329,7 +318,6 @@ const RunView: React.FC<RunViewProps> = ({
         }
       }
     } catch (err: any) {
-      // Revert on failure
       const revertedTracks = result.tracks.map(t =>
         t.id === track.id ? { ...t, status: track.status } : t
       );
@@ -404,7 +392,7 @@ const RunView: React.FC<RunViewProps> = ({
   if (genStatus === 'RUNNING') {
     return (
       <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center p-8 animate-in fade-in duration-300">
-        <div className="w-20 h-20 border-4 border-palette-pink border-t-transparent rounded-full animate-spin mb-8" />
+        <div className="w-20 h-20 border-4 border-palette-teal border-t-transparent rounded-full animate-spin mb-8" />
         <h2 className="text-4xl font-mango text-[#D1F2EB] mb-2">Composing Mix</h2>
         <p className="text-zinc-500 font-garet text-center max-w-xs uppercase tracking-widest text-[10px]">
           Building your {option.name} mix...
@@ -417,11 +405,11 @@ const RunView: React.FC<RunViewProps> = ({
     return (
       <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center p-8 gap-6">
         <div className="text-5xl">⚠️</div>
-        <h2 className="text-3xl font-mango text-palette-pink">Mix Failed</h2>
+        <h2 className="text-3xl font-mango text-palette-teal">Mix Failed</h2>
         <p className="text-zinc-500 text-center text-sm max-w-xs">{error}</p>
         <button
           onClick={startRun}
-          className="bg-palette-pink text-white font-black uppercase tracking-widest text-sm px-8 py-4 rounded-2xl active:scale-95 transition-all"
+          className="bg-palette-teal text-white font-black uppercase tracking-widest text-sm px-8 py-4 rounded-2xl active:scale-95 transition-all"
         >
           Try Again
         </button>
@@ -436,9 +424,10 @@ const RunView: React.FC<RunViewProps> = ({
     <div className="fixed inset-0 z-[1000] bg-black flex flex-col animate-in slide-in-from-bottom duration-500 pb-[85px]">
 
       <header className="px-6 pb-6 flex items-center justify-between border-b border-white/5 bg-black/30 shrink-0 pt-16">
+        {/* Back button — teal */}
         <button
           onClick={() => { Haptics.impactAsync(ImpactFeedbackStyle.Light); onClose(); }}
-          className="text-palette-pink text-[14px] font-black uppercase tracking-[0.2em] active:opacity-50 transition-opacity"
+          className="text-palette-teal text-[14px] font-black uppercase tracking-[0.2em] active:opacity-50 transition-opacity"
         >
           Back
         </button>
@@ -474,6 +463,7 @@ const RunView: React.FC<RunViewProps> = ({
                 </div>
               </div>
 
+              {/* Play Mix / Source button — teal in preview mode */}
               {genStatus === 'DONE' && (
                 <button
                   onClick={() => {
@@ -486,7 +476,7 @@ const RunView: React.FC<RunViewProps> = ({
                   }}
                   className={`flex-1 relative overflow-hidden px-4 py-2.5 rounded-[20px] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border ${
                     viewMode === 'PREVIEW'
-                      ? 'border-palette-pink/40 bg-palette-pink/15 text-palette-pink shadow-palette-pink/20'
+                      ? 'border-palette-teal/40 bg-palette-teal/15 text-palette-teal shadow-palette-teal/20'
                       : 'border-palette-emerald/40 bg-palette-emerald/15 text-palette-emerald shadow-palette-emerald/20'
                   }`}
                 >
@@ -530,6 +520,7 @@ const RunView: React.FC<RunViewProps> = ({
           style={{ bottom: '85px' }}
         >
           <div className="flex items-center gap-4">
+            {/* Regenerate button — unchanged gold */}
             <button
               onClick={handleRegenerate}
               className="flex-1 relative overflow-hidden bg-zinc-900 border border-white/10 text-palette-gold font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-xl"
@@ -541,9 +532,10 @@ const RunView: React.FC<RunViewProps> = ({
               <span className="text-sm font-garet font-bold uppercase tracking-widest">Regenerate</span>
             </button>
 
+            {/* Save button — teal */}
             <button
               onClick={() => { Haptics.heavy(); setShowSaveOptions(true); }}
-              className="flex-1 relative overflow-hidden bg-palette-pink text-white font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-2xl shadow-palette-pink/30 border border-white/10"
+              className="flex-1 relative overflow-hidden bg-palette-teal text-white font-black py-3.5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all shadow-2xl shadow-palette-teal/30 border border-white/10"
             >
               <div className="absolute top-1 left-2 w-[90%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-full blur-[1px] animate-jelly-shimmer pointer-events-none" />
               <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
@@ -610,17 +602,18 @@ const RunView: React.FC<RunViewProps> = ({
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
                 autoFocus
-                className={`bg-black/40 border ${editName.trim() === '' ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-[#D1F2EB] font-garet font-bold outline-none focus:border-palette-pink transition-all`}
+                className={`bg-black/40 border ${editName.trim() === '' ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-[#D1F2EB] font-garet font-bold outline-none focus:border-palette-teal transition-all`}
               />
               {editName.trim() === '' && (
                 <span className="text-[9px] text-red-500 font-bold uppercase tracking-widest px-1">Name cannot be empty</span>
               )}
             </div>
             <div className="flex flex-col gap-3">
+              {/* Confirm Save button — teal */}
               <button
                 onClick={handleConfirmSave}
                 disabled={editName.trim() === '' || isSaving}
-                className="w-full bg-palette-pink text-white font-black py-5 rounded-[24px] active:scale-95 transition-all font-garet uppercase tracking-widest text-xs shadow-xl shadow-palette-pink/20 disabled:opacity-50"
+                className="w-full bg-palette-teal text-white font-black py-5 rounded-[24px] active:scale-95 transition-all font-garet uppercase tracking-widest text-xs shadow-xl shadow-palette-teal/20 disabled:opacity-50"
               >
                 {isSaving ? 'Saving...' : 'Save'}
               </button>
