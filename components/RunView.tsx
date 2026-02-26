@@ -477,7 +477,7 @@ const RunView: React.FC<RunViewProps> = ({
                   className={`flex-1 relative overflow-hidden px-4 py-2.5 rounded-[20px] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border ${
                     viewMode === 'PREVIEW'
                       ? 'border-palette-teal/40 bg-palette-teal/15 text-palette-teal shadow-palette-teal/20'
-                      : 'border-palette-emerald/40 bg-palette-emerald/15 text-palette-emerald shadow-palette-emerald/20'
+                      : 'border-palette-pink/40 bg-palette-pink/15 text-palette-pink shadow-palette-pink/20'
                   }`}
                 >
                   <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24">
@@ -570,7 +570,7 @@ const RunView: React.FC<RunViewProps> = ({
               </button>
               <button
                 onClick={handleSaveToVault}
-                className="w-full py-6 rounded-[28px] bg-palette-gold/10 border border-palette-gold/40 text-palette-gold flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg"
+                className="w-full py-6 rounded-[28px] bg-palette-pink/10 border border-palette-pink/40 text-palette-pink flex flex-col items-center gap-2 transition-all active:scale-95 shadow-lg"
               >
                 <span className="font-garet font-black text-[13px] uppercase tracking-widest">Save to Vault</span>
                 <span className="text-[9px] opacity-70 font-bold">Internal App History</span>
