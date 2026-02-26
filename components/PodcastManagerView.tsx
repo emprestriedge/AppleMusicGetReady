@@ -8,7 +8,7 @@ interface PodcastShow {
   name: string;
   publisher: string;
   imageUrl: string;
-  podcastUrl: string; // apple podcasts URL
+  podcastUrl: string;
 }
 
 interface iTunesResult {
@@ -56,12 +56,9 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
     Haptics.impact();
     setIsSearching(true);
     setCandidates([]);
-
     try {
       const encoded = encodeURIComponent(searchQuery.trim());
-      const res = await fetch(
-        `https://itunes.apple.com/search?term=${encoded}&media=podcast&entity=podcast&limit=10`
-      );
+      const res = await fetch(`https://itunes.apple.com/search?term=${encoded}&media=podcast&entity=podcast&limit=10`);
       const data = await res.json();
       if (data.results && data.results.length > 0) {
         setCandidates(data.results);
@@ -81,14 +78,8 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
 
   const handleConfirm = () => {
     if (!selectedCandidate) return;
-
-    // Check for duplicate
     const isDupe = shows.some(s => s.id === String(selectedCandidate.collectionId));
-    if (isDupe) {
-      toastService.show('That show is already in your list', 'warning');
-      return;
-    }
-
+    if (isDupe) { toastService.show('That show is already in your list', 'warning'); return; }
     const newShow: PodcastShow = {
       id: String(selectedCandidate.collectionId),
       name: selectedCandidate.collectionName,
@@ -96,7 +87,6 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
       imageUrl: selectedCandidate.artworkUrl100.replace('100x100', '512x512'),
       podcastUrl: selectedCandidate.collectionViewUrl,
     };
-
     const updated = [...shows, newShow];
     setShows(updated);
     savePodcastShows(updated);
@@ -119,7 +109,8 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
   return (
     <div className="pt-24 px-4 animate-in slide-in-from-right duration-300 pb-40">
       <header className="mb-8 flex flex-col gap-2 px-2">
-        <button onClick={onBack} className="text-palette-pink flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50">
+        {/* Item 4: back button teal */}
+        <button onClick={onBack} className="text-palette-teal flex items-center gap-1 font-black text-xs uppercase tracking-widest active:opacity-50">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M15 19l-7-7 7-7" />
           </svg>
@@ -129,7 +120,7 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mt-2 ml-1">Your favorite shows</p>
       </header>
 
-      {/* Search */}
+      {/* Search — Item 6: search button teal */}
       <div className="glass-panel-gold rounded-[32px] p-6 mb-6 flex flex-col gap-4">
         <h2 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.2em]">Add a Show</h2>
         <div className="flex gap-3">
@@ -139,13 +130,13 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
             placeholder="Search podcast name..."
-            className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-[#D1F2EB] font-medium outline-none focus:border-palette-pink transition-all"
+            className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-[#D1F2EB] font-medium outline-none focus:border-palette-teal transition-all"
             style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}
           />
           <button
             onClick={handleSearch}
             disabled={isSearching || !searchQuery.trim()}
-            className="bg-palette-pink text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-40 shrink-0"
+            className="bg-palette-teal text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-40 shrink-0 shadow-lg shadow-palette-teal/25"
           >
             {isSearching ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -172,11 +163,7 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
         ) : (
           shows.map(show => (
             <div key={show.id} className="glass-panel-gold rounded-[28px] p-4 flex items-center gap-4">
-              <img
-                src={show.imageUrl}
-                alt={show.name}
-                className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10"
-              />
+              <img src={show.imageUrl} alt={show.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10" />
               <div className="flex-1 min-w-0">
                 <p className="text-[#A9E8DF] font-semibold text-[17px] truncate"
                   style={{ fontFamily: '"Avenir Next Condensed", "Avenir Next", "Avenir", sans-serif' }}>
@@ -200,7 +187,7 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
         )}
       </div>
 
-      {/* Search Results Picker */}
+      {/* Search Results Picker — Item 6: "Add to My Shows" button teal */}
       {showPicker && (
         <div
           className="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-300"
@@ -249,10 +236,11 @@ const PodcastManagerView: React.FC<PodcastManagerViewProps> = ({ onBack }) => {
             </div>
 
             <footer className="p-6 shrink-0 border-t border-white/5 flex flex-col gap-3">
+              {/* Item 6: Add to My Shows — teal */}
               <button
                 onClick={handleConfirm}
                 disabled={!selectedCandidate}
-                className="w-full bg-palette-pink text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs active:scale-95 transition-all disabled:opacity-40"
+                className="w-full bg-palette-teal text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs active:scale-95 transition-all disabled:opacity-40 shadow-lg shadow-palette-teal/25"
               >
                 Add to My Shows
               </button>
