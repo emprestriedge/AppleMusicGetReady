@@ -48,7 +48,7 @@ const SettingsRow: React.FC<{
     <div className="flex items-center gap-4 text-left min-w-0">
       <span className="text-2xl group-active:scale-110 transition-transform shrink-0">{icon}</span>
       <div className="flex flex-col min-w-0">
-        <span className="text-[20px] font-semibold transition-colors truncate" style={{ ...avenir, color: '#FFD6EC' }}>
+        <span className="text-[20px] font-semibold transition-colors truncate" style={{ ...avenir, color: '#A9E8DF' }}>
           {label}
         </span>
         <span className="text-[10px] text-zinc-600 font-medium truncate" style={avenir}>{subtext}</span>
@@ -125,7 +125,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="px-6 py-5 flex items-center justify-between gap-4">
             <div className="flex flex-col min-w-0">
               {/* Apple Music label — tinted pink */}
-              <span className="text-[20px] font-medium truncate" style={{ ...avenir, color: '#FFD6EC' }}>
+              <span className="text-[20px] font-medium truncate" style={{ ...avenir, color: '#A9E8DF' }}>
                 Apple Music
               </span>
               <span className="text-[11px] text-zinc-500 font-medium truncate" style={avenir}>
@@ -177,8 +177,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Playlist Length — label tinted pink, number teal */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Playlist Length</span>
-              <span className="font-black text-2xl tabular-nums text-palette-teal" style={avenir}>{rules.playlistLength}</span>
+              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#A9E8DF' }}>Playlist Length</span>
+              <span className="font-black text-2xl tabular-nums text-palette-pink" style={avenir}>{rules.playlistLength}</span>
             </div>
             <input
               type="range" min="15" max="75" step="1"
@@ -194,7 +194,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Default Mood — label tinted pink, value pink */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Default Mood</span>
+              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#A9E8DF' }}>Default Mood</span>
               <span className="font-black text-lg text-palette-pink" style={avenir}>{moodLabel}</span>
             </div>
             <input
@@ -211,8 +211,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Default Exploration — label tinted pink, value teal */}
           <div className="px-6 py-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Default Exploration</span>
-              <span className="font-black text-sm text-palette-teal" style={avenir}>{discoveryLabel}</span>
+              <span className="text-[20px] font-medium" style={{ ...avenir, color: '#A9E8DF' }}>Default Exploration</span>
+              <span className="font-black text-sm text-palette-pink" style={avenir}>{discoveryLabel}</span>
             </div>
             <input
               type="range" min="0" max="1" step="0.05"
@@ -227,13 +227,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
           {/* Allow Explicit — label tinted pink, toggle teal */}
           <div className="px-6 py-5 flex items-center justify-between">
-            <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Allow Explicit</span>
+            <span className="text-[20px] font-medium" style={{ ...avenir, color: '#A9E8DF' }}>Allow Explicit</span>
             <Toggle checked={rules.allowExplicit} onToggle={() => toggle('allowExplicit')} />
           </div>
 
           {/* Avoid Repeats — label tinted pink, toggle teal */}
           <div className="px-6 py-5 flex items-center justify-between">
-            <span className="text-[20px] font-medium" style={{ ...avenir, color: '#FFD6EC' }}>Avoid Repeats</span>
+            <span className="text-[20px] font-medium" style={{ ...avenir, color: '#A9E8DF' }}>Avoid Repeats</span>
             <Toggle checked={rules.avoidRepeats} onToggle={() => toggle('avoidRepeats')} />
           </div>
 
