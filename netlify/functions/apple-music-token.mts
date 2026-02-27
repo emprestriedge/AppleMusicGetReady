@@ -14,11 +14,16 @@ export default async (req: Request, context: Context) => {
       );
     }
 
+    const beginKey = "-----BEGIN " + "PRIVATE KEY-----";
+    const endKey = "-----END " + "PRIVATE KEY-----";
+    const beginEcKey = "-----BEGIN EC " + "PRIVATE KEY-----";
+    const endEcKey = "-----END EC " + "PRIVATE KEY-----";
+
     const stripped = rawKey
-      .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-      .replace(/-----END PRIVATE KEY-----/g, "")
-      .replace(/-----BEGIN EC PRIVATE KEY-----/g, "")
-      .replace(/-----END EC PRIVATE KEY-----/g, "")
+      .replace(new RegExp(beginKey, 'g'), "")
+      .replace(new RegExp(endKey, 'g'), "")
+      .replace(new RegExp(beginEcKey, 'g'), "")
+      .replace(new RegExp(endEcKey, 'g'), "")
       .replace(/\r/g, "")
       .replace(/\n/g, "")
       .replace(/\\n/g, "")
@@ -26,7 +31,7 @@ export default async (req: Request, context: Context) => {
       .trim();
 
     const lines = stripped.match(/.{1,64}/g) || [];
-    const pem = `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----\n`;
+    const pem = `${beginKey}\n${lines.join("\n")}\n${endKey}\n`;
 
     const privateKeyObj = createPrivateKey({ key: pem, format: "pem" });
 
