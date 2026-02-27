@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.erinmarie.getreadyav',
-  appName: 'GetReadyAV',
+  appName: 'GetReady🍎',
   webDir: 'dist',
   ios: {
     allowsLinkPreview: false,
