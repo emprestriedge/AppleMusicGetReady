@@ -17,6 +17,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		AA110001AABBCC0011223344 /* MusicKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA110000AABBCC0011223344 /* MusicKitBridge.swift */; };
 		AA220001AABBCC0011223344 /* MusicKitPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA220000AABBCC0011223344 /* MusicKitPlugin.swift */; };
+		AA330001AABBCC0011223344 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA330000AABBCC0011223344 /* ViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		AA110000AABBCC0011223344 /* MusicKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitBridge.swift; sourceTree = "<group>"; };
 		AA220000AABBCC0011223344 /* MusicKitPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitPlugin.swift; sourceTree = "<group>"; };
+		AA330000AABBCC0011223344 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +72,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				AA110000AABBCC0011223344 /* MusicKitBridge.swift */,
 				AA220000AABBCC0011223344 /* MusicKitPlugin.swift */,
+				AA330000AABBCC0011223344 /* ViewController.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -165,6 +168,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				AA110001AABBCC0011223344 /* MusicKitBridge.swift in Sources */,
 				AA220001AABBCC0011223344 /* MusicKitPlugin.swift in Sources */,
+				AA330001AABBCC0011223344 /* ViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
