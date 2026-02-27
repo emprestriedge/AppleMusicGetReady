@@ -1,23 +1,23 @@
-const HARDCODED_DEV_TOKEN = "eyJhbGciOiJFUzI1NiIsImtpZCI6IjZNNlZWUTRSQjQifQ.eyJpc3MiOiJYODlaVVo0QjI2IiwiaWF0IjoxNzcyMTYxMzkzLCJleHAiOjE3ODc5MzgzOTN9.pgmrS6V4QATA8AE07dPnuTMPJ2m6keQ9T3YEMbUabtrb4QNPSEkbBsw-KLx6wsqZ89pcbRRdpjb3s4E3UX3t3g";
-
 const isCapacitorNative = (): boolean => {
   return !!(window as any).Capacitor?.isNativePlatform?.();
 };
+
+const TOKEN_URL = (import.meta as any).env?.VITE_APPLE_MUSIC_TOKEN_URL || '/api/apple-music-token';
 
 export const appleMusicService = {
   configure: async () => {
     console.log("Configuring MusicKit...");
     const native = isCapacitorNative();
     console.log("IS NATIVE:", native);
-    let token = HARDCODED_DEV_TOKEN;
-    if (!native) {
-      try {
-        const response = await fetch('/api/apple-music-token');
-        const data = await response.json();
-        if (data.token) token = data.token;
-      } catch (e) {
-        console.error("Token fetch failed, using hardcoded token");
-      }
+    let token: string;
+    try {
+      const response = await fetch(TOKEN_URL);
+      const data = await response.json();
+      if (!data.token) throw new Error("No token in response");
+      token = data.token;
+    } catch (e) {
+      console.error("Token fetch failed:", e);
+      throw new Error("Unable to obtain Apple Music developer token. Check Netlify environment variables.");
     }
     (window as any)._musicDeveloperToken = token;
     if (typeof window !== 'undefined' && (window as any).MusicKit) {

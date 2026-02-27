@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# iOS Capacitor build artifacts (contain bundled app code that may include generated tokens)
+ios/App/App/public/
+
+# Secret files - never commit these
+*.p8
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
