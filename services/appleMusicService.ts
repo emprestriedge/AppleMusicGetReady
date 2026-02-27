@@ -42,18 +42,31 @@ export const appleMusicService = {
 
     if (native) {
       const developerToken = (window as any)._musicDeveloperToken;
+      if (!developerToken) {
+        throw new Error('Developer token not loaded. Check network connection and try again.');
+      }
       return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Authorization timed out. Please try again.'));
+        }, 30000);
+
         window.addEventListener('musickit-native-auth', (event: any) => {
-          const { status, userToken } = event.detail;
+          clearTimeout(timeout);
+          const { status, userToken, error } = event.detail;
           if (status === 'authorized' && userToken) {
             const music = (window as any).MusicKit?.getInstance();
             if (music) music.musicUserToken = userToken;
             resolve(userToken);
           } else {
-            reject(new Error(`Auth failed: ${status}`));
+            reject(new Error(error || `Authorization denied (${status})`));
           }
         }, { once: true });
-        MusicKitPlugin.requestAuthorization({ developerToken });
+
+        MusicKitPlugin.requestAuthorization({ developerToken })
+          .catch((err: any) => {
+            clearTimeout(timeout);
+            reject(new Error(err?.message || 'Plugin call failed'));
+          });
       });
     }
 
