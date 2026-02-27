@@ -104,7 +104,11 @@ const App: React.FC = () => {
       if (USE_MOCK_DATA || IS_STUDIO_MODE) {
         setIsAuthorized(true); setAuthStatus('authorized'); loadHistory(); setInitFinished(true); return;
       }
-      await appleMusicService.configure();
+      try {
+        await appleMusicService.configure();
+      } catch (e) {
+        console.error('appleMusicService.configure() failed:', e);
+      }
       try {
         const music = (window as any).MusicKit?.getInstance();
         if (music && music.isAuthorized) { setIsAuthorized(true); setAuthStatus('authorized'); }

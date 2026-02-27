@@ -12,8 +12,11 @@ interface LoginViewProps {
 const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const isApple = MUSIC_PLATFORM === 'apple';
 
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+
   const handleLogin = async () => {
     Haptics.heavy();
+    setErrorMsg(null);
     try {
       if (isApple) {
         await appleMusicService.login();
@@ -21,8 +24,9 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       } else {
         await SpotifyAuth.login();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
+      setErrorMsg(error?.message || 'Login failed. Please try again.');
     }
   };
 
@@ -69,6 +73,12 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.2em]">
               Secure authentication via Official APIs
             </p>
+
+            {errorMsg && (
+              <p className="text-red-400 text-xs font-bold text-center px-4 leading-relaxed">
+                {errorMsg}
+              </p>
+            )}
           </div>
         </div>
       </InkBackground>
