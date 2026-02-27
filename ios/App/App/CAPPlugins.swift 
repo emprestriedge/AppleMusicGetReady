@@ -1,0 +1,7 @@
+import Capacitor
+
+@objc class CAPPlugins: NSObject {
+    @objc static func registerPlugins(with bridge: CAPBridgeProtocol) {
+        bridge.registerPluginType(MusicKitPlugin.self)
+    }
+}
