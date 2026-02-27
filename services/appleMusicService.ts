@@ -30,6 +30,25 @@ export const appleMusicService = {
   },
 
   login: async () => {
+    const native = isCapacitorNative();
+
+    if (native) {
+      const developerToken = (window as any)._musicDeveloperToken;
+      return new Promise((resolve, reject) => {
+        window.addEventListener('musickit-native-auth', (event: any) => {
+          const { status, userToken } = event.detail;
+          if (status === 'authorized' && userToken) {
+            const music = (window as any).MusicKit?.getInstance();
+            if (music) music.musicUserToken = userToken;
+            resolve(userToken);
+          } else {
+            reject(new Error(`Auth failed: ${status}`));
+          }
+        }, { once: true });
+        (window as any).Capacitor.Plugins.MusicKitPlugin.requestAuthorization({ developerToken });
+      });
+    }
+
     if (typeof window !== 'undefined' && (window as any).MusicKit) {
       const music = (window as any).MusicKit.getInstance();
       if (music) return music.authorize();
