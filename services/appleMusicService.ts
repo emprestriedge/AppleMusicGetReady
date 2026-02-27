@@ -1,3 +1,11 @@
+import { registerPlugin } from '@capacitor/core';
+
+interface MusicKitPluginInterface {
+  requestAuthorization(options: { developerToken: string }): Promise<void>;
+}
+
+const MusicKitPlugin = registerPlugin<MusicKitPluginInterface>('MusicKitPlugin');
+
 const isCapacitorNative = (): boolean => {
   return !!(window as any).Capacitor?.isNativePlatform?.();
 };
@@ -45,7 +53,7 @@ export const appleMusicService = {
             reject(new Error(`Auth failed: ${status}`));
           }
         }, { once: true });
-        (window as any).Capacitor.Plugins.MusicKitPlugin.requestAuthorization({ developerToken });
+        MusicKitPlugin.requestAuthorization({ developerToken });
       });
     }
 
