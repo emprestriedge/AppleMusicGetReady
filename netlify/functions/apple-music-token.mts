@@ -1,7 +1,18 @@
 import type { Context, Config } from "@netlify/functions";
 import { createPrivateKey, createSign } from "crypto";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Content-Type": "application/json",
+};
+
 export default async (req: Request, context: Context) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
   try {
     const teamId = Netlify.env.get("APPLE_TEAM_ID");
     const keyId = Netlify.env.get("APPLE_KEY_ID");
@@ -10,7 +21,7 @@ export default async (req: Request, context: Context) => {
     if (!teamId || !keyId || !rawKey) {
       return new Response(
         JSON.stringify({ error: "Missing Apple Music credentials", teamId: !!teamId, keyId: !!keyId, hasKey: !!rawKey }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -63,7 +74,7 @@ export default async (req: Request, context: Context) => {
 
     return new Response(JSON.stringify({ token }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: corsHeaders,
     });
   } catch (err: any) {
     return new Response(
@@ -72,7 +83,7 @@ export default async (req: Request, context: Context) => {
         code: err.code,
         stack: err.stack?.split("\n").slice(0, 3)
       }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: corsHeaders }
     );
   }
 };
