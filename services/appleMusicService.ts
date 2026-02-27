@@ -7,12 +7,9 @@ const isCapacitorNative = (): boolean => {
 export const appleMusicService = {
   configure: async () => {
     console.log("Configuring MusicKit...");
-
     const native = isCapacitorNative();
     console.log("IS NATIVE:", native);
-
     let token = HARDCODED_DEV_TOKEN;
-
     if (!native) {
       try {
         const response = await fetch('/api/apple-music-token');
@@ -22,9 +19,7 @@ export const appleMusicService = {
         console.error("Token fetch failed, using hardcoded token");
       }
     }
-
     (window as any)._musicDeveloperToken = token;
-
     if (typeof window !== 'undefined' && (window as any).MusicKit) {
       (window as any).MusicKit.configure({
         developerToken: token,
@@ -36,4 +31,16 @@ export const appleMusicService = {
 
   login: async () => {
     if (typeof window !== 'undefined' && (window as any).MusicKit) {
-      const music
+      const music = (window as any).MusicKit.getInstance();
+      if (music) return music.authorize();
+    }
+    throw new Error("MusicKit not initialized");
+  },
+
+  logout: () => {
+    if (typeof window !== 'undefined' && (window as any).MusicKit) {
+      const music = (window as any).MusicKit.getInstance();
+      if (music) music.unauthorize();
+    }
+  }
+};
