@@ -1,10 +1,10 @@
 import Foundation
 import StoreKit
-import Capacitor
+import WebKit
 
 class MusicKitBridge: NSObject {
     
-    static func requestAuthorization(bridge: CAPBridgeProtocol?, developerToken: String) {
+    static func requestAuthorization(webView: WKWebView?, developerToken: String) {
         SKCloudServiceController.requestAuthorization { status in
             switch status {
             case .authorized:
@@ -12,7 +12,7 @@ class MusicKitBridge: NSObject {
                 controller.requestUserToken(forDeveloperToken: developerToken) { userToken, error in
                     if let error = error {
                         DispatchQueue.main.async {
-                            bridge?.webView?.evaluateJavaScript(
+                            webView?.evaluateJavaScript(
                                 "window.dispatchEvent(new CustomEvent('musickit-native-auth', { detail: { status: 'error', error: '\(error.localizedDescription)' } }))"
                             )
                         }
@@ -21,7 +21,7 @@ class MusicKitBridge: NSObject {
                     
                     guard let userToken = userToken else {
                         DispatchQueue.main.async {
-                            bridge?.webView?.evaluateJavaScript(
+                            webView?.evaluateJavaScript(
                                 "window.dispatchEvent(new CustomEvent('musickit-native-auth', { detail: { status: 'error', error: 'No token returned' } }))"
                             )
                         }
@@ -29,14 +29,14 @@ class MusicKitBridge: NSObject {
                     }
                     
                     DispatchQueue.main.async {
-                        bridge?.webView?.evaluateJavaScript(
+                        webView?.evaluateJavaScript(
                             "window.dispatchEvent(new CustomEvent('musickit-native-auth', { detail: { status: 'authorized', userToken: '\(userToken)' } }))"
                         )
                     }
                 }
             default:
                 DispatchQueue.main.async {
-                    bridge?.webView?.evaluateJavaScript(
+                    webView?.evaluateJavaScript(
                         "window.dispatchEvent(new CustomEvent('musickit-native-auth', { detail: { status: 'error', error: 'Authorization denied or restricted' } }))"
                     )
                 }
