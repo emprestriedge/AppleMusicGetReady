@@ -1,11 +1,3 @@
-import { registerPlugin } from '@capacitor/core';
-
-interface MusicKitPluginInterface {
-  requestAuthorization(options: { developerToken: string }): Promise<void>;
-}
-
-const MusicKitPlugin = registerPlugin<MusicKitPluginInterface>('MusicKitPlugin');
-
 const isCapacitorNative = (): boolean => {
   return !!(window as any).Capacitor?.isNativePlatform?.();
 };
@@ -62,11 +54,14 @@ export const appleMusicService = {
           }
         }, { once: true });
 
-        MusicKitPlugin.requestAuthorization({ developerToken })
-          .catch((err: any) => {
-            clearTimeout(timeout);
-            reject(new Error(err?.message || 'Plugin call failed'));
-          });
+        // Direct webkit message handler — bypasses Capacitor plugin bridge
+        const wk = (window as any).webkit?.messageHandlers?.requestMusicAuth;
+        if (wk) {
+          wk.postMessage({ developerToken });
+        } else {
+          clearTimeout(timeout);
+          reject(new Error('Native bridge unavailable — are you running on a real iOS device?'));
+        }
       });
     }
 
